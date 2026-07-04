@@ -5,6 +5,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useTheme } from '@/hooks/use-theme';
 import { DurationSlider } from './components/DurationSlider';
+import { IntensitySelector } from './components/IntensitySelector';
 import { useBreathingSettings } from './context/SettingsProvider';
 
 /**
@@ -14,7 +15,14 @@ import { useBreathingSettings } from './context/SettingsProvider';
  */
 export function SettingsScreen() {
   const theme = useTheme();
-  const { durations, setDuration, hapticsEnabled, setHapticsEnabled } = useBreathingSettings();
+  const {
+    durations,
+    setDuration,
+    hapticsEnabled,
+    setHapticsEnabled,
+    hapticIntensity,
+    setHapticIntensity,
+  } = useBreathingSettings();
 
   return (
     <ThemedView style={styles.container}>
@@ -69,6 +77,19 @@ export function SettingsScreen() {
               accessibilityLabel="Haptic breathing guidance"
             />
           </View>
+
+          <View style={[styles.divider, { backgroundColor: theme.backgroundSelected }]} />
+
+          <View style={styles.intensityRow}>
+            <ThemedText type="small" themeColor={hapticsEnabled ? 'text' : 'textSecondary'}>
+              Vibration strength
+            </ThemedText>
+            <IntensitySelector
+              value={hapticIntensity}
+              onChange={setHapticIntensity}
+              disabled={!hapticsEnabled}
+            />
+          </View>
         </ThemedView>
       </ScrollView>
     </ThemedView>
@@ -111,5 +132,9 @@ const styles = StyleSheet.create({
   toggleText: {
     flex: 1,
     gap: Spacing.half,
+  },
+  intensityRow: {
+    gap: Spacing.two,
+    paddingVertical: Spacing.two,
   },
 });

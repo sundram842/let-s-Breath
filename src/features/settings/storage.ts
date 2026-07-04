@@ -2,16 +2,20 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
   DEFAULT_DURATIONS,
+  DEFAULT_HAPTIC_INTENSITY,
   DEFAULT_HAPTICS_ENABLED,
   DURATION_LIMITS,
   SETTINGS_STORAGE_KEY,
 } from './constants';
-import type { PersistedSettings } from './types';
+import type { HapticIntensity, PersistedSettings } from './types';
 
 const DEFAULTS: PersistedSettings = {
   durations: DEFAULT_DURATIONS,
   hapticsEnabled: DEFAULT_HAPTICS_ENABLED,
+  hapticIntensity: DEFAULT_HAPTIC_INTENSITY,
 };
+
+const INTENSITIES: HapticIntensity[] = ['gentle', 'medium', 'strong'];
 
 function clamp(value: number): number {
   if (!Number.isFinite(value)) return DURATION_LIMITS.min;
@@ -35,12 +39,19 @@ function normalize(raw: unknown): PersistedSettings | null {
     },
     hapticsEnabled:
       typeof r.hapticsEnabled === 'boolean' ? r.hapticsEnabled : DEFAULT_HAPTICS_ENABLED,
+    hapticIntensity: INTENSITIES.includes(r.hapticIntensity as HapticIntensity)
+      ? (r.hapticIntensity as HapticIntensity)
+      : DEFAULT_HAPTIC_INTENSITY,
   };
 }
 
 /** Serialized flat so old durations-only data stays readable. */
 function serialize(settings: PersistedSettings): string {
-  return JSON.stringify({ ...settings.durations, hapticsEnabled: settings.hapticsEnabled });
+  return JSON.stringify({
+    ...settings.durations,
+    hapticsEnabled: settings.hapticsEnabled,
+    hapticIntensity: settings.hapticIntensity,
+  });
 }
 
 /** Load persisted settings, falling back to defaults if missing/corrupt. */

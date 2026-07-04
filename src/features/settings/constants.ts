@@ -1,4 +1,4 @@
-import type { BreathingDurations } from './types';
+import type { BreathingDurations, HapticIntensity } from './types';
 
 /** Slider range shared by all three duration controls. */
 export const DURATION_LIMITS = {
@@ -18,6 +18,16 @@ export const DEFAULT_DURATIONS: BreathingDurations = {
 
 /** Haptic guidance is opt-in. */
 export const DEFAULT_HAPTICS_ENABLED = false;
+
+/** Default haptic strength. */
+export const DEFAULT_HAPTIC_INTENSITY: HapticIntensity = 'medium';
+
+/** Selectable intensity levels, in display order. */
+export const HAPTIC_INTENSITY_OPTIONS: { value: HapticIntensity; label: string }[] = [
+  { value: 'gentle', label: 'Gentle' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'strong', label: 'Strong' },
+];
 
 /** AsyncStorage key. Versioned so the shape can evolve safely later. */
 export const SETTINGS_STORAGE_KEY = 'letbreath.durations.v1';

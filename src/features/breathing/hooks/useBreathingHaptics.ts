@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 
+import type { HapticIntensity } from '@/features/settings';
 import type { BreathingConfig } from '../types';
 import { HapticEngine, type HapticPhase } from '../haptics/hapticEngine';
 
@@ -34,6 +35,8 @@ export interface UseBreathingHapticsParams {
   config: BreathingConfig;
   /** Master switch (setting ON + screen focused). */
   enabled: boolean;
+  /** Vibration strength. */
+  intensity: HapticIntensity;
 }
 
 /**
@@ -46,6 +49,7 @@ export function useBreathingHaptics({
   phaseIndex,
   config,
   enabled,
+  intensity,
 }: UseBreathingHapticsParams): void {
   // One engine instance per mount (stable, created once).
   const [engine] = useState(() => new HapticEngine());
@@ -57,8 +61,8 @@ export function useBreathingHaptics({
     }
     const phase = PHASE_TO_HAPTIC[phaseIndex];
     if (!phase) return;
-    engine.play(phase, phaseDurationMs(phaseIndex, config));
-  }, [engine, enabled, phaseIndex, config]);
+    engine.play(phase, phaseDurationMs(phaseIndex, config), intensity);
+  }, [engine, enabled, phaseIndex, config, intensity]);
 
   // Always silence vibration when the component goes away.
   useEffect(() => () => engine.stop(), [engine]);

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
+import type { HapticIntensity } from '@/features/settings';
 import { BREATHING_CONFIG, RING } from '../constants';
 import { useBreathingAnimation } from '../hooks/useBreathingAnimation';
 import { useBreathingHaptics } from '../hooks/useBreathingHaptics';
@@ -20,6 +21,8 @@ export interface BreathingCircleProps {
   muted?: boolean;
   /** Play phase-synced vibration guidance (off by default). */
   hapticsEnabled?: boolean;
+  /** Vibration strength. */
+  hapticIntensity?: HapticIntensity;
 }
 
 /**
@@ -33,6 +36,7 @@ export function BreathingCircle({
   onComplete,
   muted = false,
   hapticsEnabled = false,
+  hapticIntensity = 'medium',
 }: BreathingCircleProps) {
   const { width, height } = useWindowDimensions();
   const resolvedConfig = config ?? BREATHING_CONFIG;
@@ -53,7 +57,12 @@ export function BreathingCircle({
   useBreathingSound(phaseIndex, !muted);
 
   // Phase-synced vibration guidance (opt-in via Settings).
-  useBreathingHaptics({ phaseIndex, config: resolvedConfig, enabled: hapticsEnabled });
+  useBreathingHaptics({
+    phaseIndex,
+    config: resolvedConfig,
+    enabled: hapticsEnabled,
+    intensity: hapticIntensity,
+  });
 
   const subtitle = `${cyclesLeft} ${cyclesLeft === 1 ? 'cycle' : 'cycles'} left`;
 

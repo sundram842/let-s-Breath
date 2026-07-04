@@ -20,7 +20,7 @@ import type { BreathingConfig } from './types';
 export function BreathingScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { durations, hapticsEnabled } = useBreathingSettings();
+  const { durations, hapticsEnabled, hapticIntensity } = useBreathingSettings();
 
   // Box breathing: Inhale → Hold (full) → Exhale → Hold (empty) → repeat.
   // The empty hold reuses the "Hold" duration so all four phases are real.
@@ -53,7 +53,11 @@ export function BreathingScreen() {
       <StatusBar style="light" />
 
       <View style={styles.center}>
-        <BreathingCircle config={config} hapticsEnabled={hapticsEnabled && focused} />
+        <BreathingCircle
+          config={config}
+          hapticsEnabled={hapticsEnabled && focused}
+          hapticIntensity={hapticIntensity}
+        />
       </View>
 
       <Pressable

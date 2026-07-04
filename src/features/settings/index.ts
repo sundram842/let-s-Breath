@@ -9,17 +9,26 @@ export {
   IntensitySelector,
   type IntensitySelectorProps,
 } from './components/IntensitySelector';
+export {
+  SessionModeControl,
+  type SessionModeControlProps,
+} from './components/SessionModeControl';
 export { formatDuration } from './utils/formatDuration';
 export {
   DEFAULT_DURATIONS,
   DEFAULT_HAPTICS_ENABLED,
   DEFAULT_HAPTIC_INTENSITY,
+  DEFAULT_SOUND_ENABLED,
+  DEFAULT_SESSION,
   HAPTIC_INTENSITY_OPTIONS,
+  SESSION_LIMITS,
   DURATION_LIMITS,
 } from './constants';
 export type {
   BreathingDurations,
   DurationKey,
   HapticIntensity,
+  SessionConfig,
+  SessionMode,
   PersistedSettings,
 } from './types';

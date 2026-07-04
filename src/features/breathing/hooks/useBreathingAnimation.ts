@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
+  cancelAnimation,
   Easing,
   runOnJS,
   useAnimatedReaction,
@@ -21,8 +22,10 @@ import type { BreathingConfig, BreathingPhase } from '../types';
 export interface UseBreathingAnimationParams {
   /** Override the default 4-1-4-1 rhythm. */
   config?: BreathingConfig;
-  /** How many cycles to count down from. */
+  /** How many cycles to count down from (pass Infinity to never end). */
   totalCycles?: number;
+  /** When false, the animation freezes and resets (used for session end). */
+  running?: boolean;
   /** Fired once when the last cycle completes. */
   onComplete?: () => void;
 }
@@ -56,6 +59,7 @@ function smoothstep(x: number): number {
 export function useBreathingAnimation({
   config = BREATHING_CONFIG,
   totalCycles = DEFAULT_TOTAL_CYCLES,
+  running = true,
   onComplete,
 }: UseBreathingAnimationParams = {}): UseBreathingAnimationResult {
   const { inhaleMs, holdInMs, exhaleMs, holdOutMs } = config;
@@ -66,15 +70,25 @@ export function useBreathingAnimation({
   const [phaseIndex, setPhaseIndex] = useState(0);
   const [cyclesLeft, setCyclesLeft] = useState(totalCycles);
 
-  // Reset the countdown when `totalCycles` changes — done during render
-  // (React's recommended pattern) rather than in an effect.
+  // Reset the countdown when `totalCycles` changes, or whenever a fresh session
+  // starts (running goes false → true) — done during render (React's pattern).
   const [prevTotalCycles, setPrevTotalCycles] = useState(totalCycles);
   if (prevTotalCycles !== totalCycles) {
     setPrevTotalCycles(totalCycles);
     setCyclesLeft(totalCycles);
   }
+  const [prevRunning, setPrevRunning] = useState(running);
+  if (prevRunning !== running) {
+    setPrevRunning(running);
+    if (running) setCyclesLeft(totalCycles);
+  }
 
   useEffect(() => {
+    if (!running) {
+      cancelAnimation(clock);
+      clock.value = 0;
+      return;
+    }
     clock.value = 0;
     clock.value = withRepeat(
       withTiming(1, { duration: total, easing: Easing.linear }),
@@ -82,9 +96,10 @@ export function useBreathingAnimation({
       false, // don't reverse — the timeline models the full cycle itself
     );
     return () => {
+      cancelAnimation(clock);
       clock.value = 0;
     };
-  }, [clock, total]);
+  }, [clock, total, running]);
 
   // Ring fill: eased on inhale/exhale, flat during holds.
   const progress = useDerivedValue(() => {

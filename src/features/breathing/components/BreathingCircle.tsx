@@ -23,6 +23,12 @@ export interface BreathingCircleProps {
   hapticsEnabled?: boolean;
   /** Vibration strength. */
   hapticIntensity?: HapticIntensity;
+  /** When false, freeze the animation (e.g. session finished). */
+  running?: boolean;
+  /** Replace the phase label (e.g. "Session complete"). */
+  titleOverride?: string;
+  /** Replace the "N cycles left" line (e.g. a time countdown or "∞"). */
+  subtitleOverride?: string;
 }
 
 /**
@@ -37,6 +43,9 @@ export function BreathingCircle({
   muted = false,
   hapticsEnabled = false,
   hapticIntensity = 'medium',
+  running = true,
+  titleOverride,
+  subtitleOverride,
 }: BreathingCircleProps) {
   const { width, height } = useWindowDimensions();
   const resolvedConfig = config ?? BREATHING_CONFIG;
@@ -50,26 +59,29 @@ export function BreathingCircle({
   const { progress, phaseIndex, phaseLabel, cyclesLeft } = useBreathingAnimation({
     config: resolvedConfig,
     totalCycles,
+    running,
     onComplete,
   });
 
   // Guided voice cues, synced to the phase transitions.
-  useBreathingSound(phaseIndex, !muted);
+  useBreathingSound(phaseIndex, !muted && running);
 
   // Phase-synced vibration guidance (opt-in via Settings).
   useBreathingHaptics({
     phaseIndex,
     config: resolvedConfig,
-    enabled: hapticsEnabled,
+    enabled: hapticsEnabled && running,
     intensity: hapticIntensity,
   });
 
-  const subtitle = `${cyclesLeft} ${cyclesLeft === 1 ? 'cycle' : 'cycles'} left`;
+  const title = titleOverride ?? phaseLabel;
+  const subtitle =
+    subtitleOverride ?? `${cyclesLeft} ${cyclesLeft === 1 ? 'cycle' : 'cycles'} left`;
 
   return (
     <View style={[styles.container, { width: size, height: size }]}>
       <ProgressRing size={size} strokeWidth={strokeWidth} progress={progress} />
-      <CenterLabel title={phaseLabel} subtitle={subtitle} size={size} />
+      <CenterLabel title={title} subtitle={subtitle} size={size} />
     </View>
   );
 }

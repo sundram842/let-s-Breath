@@ -14,19 +14,18 @@ export interface DurationSliderProps {
   value: number;
   /** Fired whenever the value changes (drag, +/-, or manual entry). */
   onChange: (value: number) => void;
-}
-
-function clamp(v: number): number {
-  return Math.min(DURATION_LIMITS.max, Math.max(DURATION_LIMITS.min, Math.round(v)));
+  /** Lower bound in seconds (default 1; holds pass 0 to allow "no hold"). */
+  min?: number;
 }
 
 /**
  * A labeled duration control: a slider plus a −/+ stepper (1-second increments)
- * and an editable numeric field for typing an exact value. All inputs are
- * clamped to the 1 sec – 20 min range.
+ * and an editable numeric field. All inputs are clamped to [min, 20 min].
  */
-export function DurationSlider({ label, value, onChange }: DurationSliderProps) {
+export function DurationSlider({ label, value, onChange, min = DURATION_LIMITS.min }: DurationSliderProps) {
   const theme = useTheme();
+
+  const clamp = (v: number) => Math.min(DURATION_LIMITS.max, Math.max(min, Math.round(v)));
 
   // Local text buffer so the user can type freely; committed on blur/submit.
   const [text, setText] = useState(String(value));
@@ -113,7 +112,7 @@ export function DurationSlider({ label, value, onChange }: DurationSliderProps) 
 
       <Slider
         style={styles.slider}
-        minimumValue={DURATION_LIMITS.min}
+        minimumValue={min}
         maximumValue={DURATION_LIMITS.max}
         step={DURATION_LIMITS.step}
         value={value}

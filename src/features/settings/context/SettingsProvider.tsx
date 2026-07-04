@@ -12,13 +12,16 @@ import {
   DEFAULT_DURATIONS,
   DEFAULT_HAPTIC_INTENSITY,
   DEFAULT_HAPTICS_ENABLED,
+  DEFAULT_PRACTICE,
   DEFAULT_SESSION,
   DEFAULT_SOUND_ENABLED,
   defaultThemePreference,
+  PRESET_DURATIONS,
 } from '../constants';
 import { loadSettings, saveSettings } from '../storage';
 import type {
   BreathingDurations,
+  BreathingPractice,
   DurationKey,
   HapticIntensity,
   SessionConfig,
@@ -33,8 +36,11 @@ interface SettingsContextValue {
   session: SessionConfig;
   themePreference: ThemePreference;
   backgroundEnabled: boolean;
+  /** Selected breathing practice preset ("custom" = user-configured). */
+  practice: BreathingPractice;
   /** True once AsyncStorage has been read at least once. */
   loaded: boolean;
+  /** Edit a duration manually — this also switches the practice to Custom. */
   setDuration: (key: DurationKey, value: number) => void;
   setHapticsEnabled: (value: boolean) => void;
   setHapticIntensity: (value: HapticIntensity) => void;
@@ -43,6 +49,8 @@ interface SettingsContextValue {
   setSession: (partial: Partial<SessionConfig>) => void;
   setThemePreference: (value: ThemePreference) => void;
   setBackgroundEnabled: (value: boolean) => void;
+  /** Select a practice — applies its preset durations (Custom keeps current). */
+  setPractice: (value: BreathingPractice) => void;
   resetDurations: () => void;
 }
 
@@ -65,6 +73,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     defaultThemePreference,
   );
   const [backgroundEnabled, setBackgroundEnabled] = useState(DEFAULT_BACKGROUND_ENABLED);
+  const [practice, setPracticeState] = useState<BreathingPractice>(DEFAULT_PRACTICE);
   const [loaded, setLoaded] = useState(false);
 
   // Load persisted values once on startup.
@@ -79,6 +88,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setSessionState(stored.session);
       setThemePreference(stored.themePreference);
       setBackgroundEnabled(stored.backgroundEnabled);
+      setPracticeState(stored.practice);
       setLoaded(true);
     });
     return () => {
@@ -99,6 +109,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         session,
         themePreference,
         backgroundEnabled,
+        practice,
       });
     }, 300);
     return () => clearTimeout(timeout);
@@ -110,6 +121,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     session,
     themePreference,
     backgroundEnabled,
+    practice,
     loaded,
   ]);
 
@@ -122,14 +134,24 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       session,
       themePreference,
       backgroundEnabled,
+      practice,
       loaded,
-      setDuration: (key, val) => setDurations((prev) => ({ ...prev, [key]: val })),
+      setDuration: (key, val) => {
+        // A manual timer edit means the config is no longer a preset.
+        setDurations((prev) => ({ ...prev, [key]: val }));
+        setPracticeState('custom');
+      },
       setHapticsEnabled,
       setHapticIntensity,
       setSoundEnabled,
       setSession: (partial) => setSessionState((prev) => ({ ...prev, ...partial })),
       setThemePreference,
       setBackgroundEnabled,
+      setPractice: (value) => {
+        setPracticeState(value);
+        // Selecting a preset applies its durations; Custom keeps the current ones.
+        if (value !== 'custom') setDurations(PRESET_DURATIONS[value]);
+      },
       resetDurations: () => setDurations(DEFAULT_DURATIONS),
     }),
     [
@@ -140,6 +162,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       session,
       themePreference,
       backgroundEnabled,
+      practice,
       loaded,
     ],
   );

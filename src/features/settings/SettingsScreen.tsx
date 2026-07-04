@@ -4,9 +4,10 @@ import { Spacing } from '@/constants/theme';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useTheme } from '@/hooks/use-theme';
-import { THEME_OPTIONS } from './constants';
+import { HOLD_DURATION_MIN, THEME_OPTIONS } from './constants';
 import { DurationSlider } from './components/DurationSlider';
 import { IntensitySelector } from './components/IntensitySelector';
+import { PracticePicker } from './components/PracticePicker';
 import { Segmented } from './components/Segmented';
 import { SessionModeControl } from './components/SessionModeControl';
 import { useBreathingSettings } from './context/SettingsProvider';
@@ -33,6 +34,8 @@ export function SettingsScreen() {
     setThemePreference,
     backgroundEnabled,
     setBackgroundEnabled,
+    practice,
+    setPractice,
   } = useBreathingSettings();
 
   const divider = <View style={[styles.divider, { backgroundColor: theme.backgroundSelected }]} />;
@@ -62,6 +65,13 @@ export function SettingsScreen() {
         </ThemedText>
 
         <ThemedView type="backgroundElement" style={styles.card}>
+          <View style={styles.pickerRow}>
+            <ThemedText type="default">Breathing Practice</ThemedText>
+            <PracticePicker value={practice} onChange={setPractice} />
+          </View>
+
+          {divider}
+
           <DurationSlider
             label="Inhale"
             value={durations.inhaleSec}
@@ -70,6 +80,7 @@ export function SettingsScreen() {
           {divider}
           <DurationSlider
             label="Hold"
+            min={HOLD_DURATION_MIN}
             value={durations.holdSec}
             onChange={(v) => setDuration('holdSec', v)}
           />
@@ -82,14 +93,15 @@ export function SettingsScreen() {
           {divider}
           <DurationSlider
             label="Hold (after exhale)"
+            min={HOLD_DURATION_MIN}
             value={durations.holdOutSec}
             onChange={(v) => setDuration('holdOutSec', v)}
           />
         </ThemedView>
 
         <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
-          Each phase can range from 1 sec to 20 min. Changes are saved
-          automatically and used in your next breath.
+          Pick a practice to auto-set the timers. Inhale and exhale range 1 sec–20
+          min; holds may be 0. Editing any timer switches the practice to Custom.
         </ThemedText>
 
         {/* --- Session end mode --- */}
@@ -223,6 +235,10 @@ const styles = StyleSheet.create({
     gap: Spacing.half,
   },
   intensityRow: {
+    gap: Spacing.two,
+    paddingVertical: Spacing.two,
+  },
+  pickerRow: {
     gap: Spacing.two,
     paddingVertical: Spacing.two,
   },

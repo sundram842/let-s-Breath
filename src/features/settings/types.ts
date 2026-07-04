@@ -15,6 +15,15 @@ export type HapticIntensity = 'gentle' | 'medium' | 'strong';
 /** App appearance. */
 export type ThemePreference = 'light' | 'dark';
 
+/** A guided breathing practice preset ("custom" = user-configured). */
+export type BreathingPractice =
+  | 'custom'
+  | 'quickCalm'
+  | 'dailyBalance'
+  | 'focusMode'
+  | 'sleepPrep'
+  | 'mindful';
+
 /** How a session ends: after a number of cycles, or after a length of time. */
 export type SessionMode = 'cycles' | 'duration';
 
@@ -46,4 +55,6 @@ export interface PersistedSettings {
   themePreference: ThemePreference;
   /** Keep the session running while the app is backgrounded. */
   backgroundEnabled: boolean;
+  /** Selected breathing practice preset. */
+  practice: BreathingPractice;
 }

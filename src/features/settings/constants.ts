@@ -2,19 +2,23 @@ import { Appearance } from 'react-native';
 
 import type {
   BreathingDurations,
+  BreathingPractice,
   HapticIntensity,
   SessionConfig,
   ThemePreference,
 } from './types';
 
-/** Slider range shared by all three duration controls. */
+/** Slider range shared by all duration controls. */
 export const DURATION_LIMITS = {
-  /** 1 second. */
+  /** 1 second (inhale / exhale). */
   min: 1,
   /** 20 minutes. */
   max: 20 * 60,
   step: 1,
 } as const;
+
+/** Holds may be 0 (skipped) — e.g. Physiological Sigh, Resonance, 4-7-8. */
+export const HOLD_DURATION_MIN = 0;
 
 /** Sensible starting point when nothing is stored yet (4-4-4-4 box breathing). */
 export const DEFAULT_DURATIONS: BreathingDurations = {
@@ -66,6 +70,39 @@ export const DEFAULT_BACKGROUND_ENABLED = false;
 export const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: 'light', label: 'Light' },
   { value: 'dark', label: 'Dark' },
+];
+
+/** Default practice: fully manual. */
+export const DEFAULT_PRACTICE: BreathingPractice = 'custom';
+
+/**
+ * Durations (seconds) for each preset. Physiological Sigh's 3s+1s double inhale
+ * is approximated as a single 4s inhale; Alternate Nostril is approximated by
+ * timing only (single channel).
+ */
+export const PRESET_DURATIONS: Record<
+  Exclude<BreathingPractice, 'custom'>,
+  BreathingDurations
+> = {
+  quickCalm: { inhaleSec: 4, holdSec: 0, exhaleSec: 6, holdOutSec: 0 },
+  dailyBalance: { inhaleSec: 5, holdSec: 0, exhaleSec: 5, holdOutSec: 0 },
+  focusMode: { inhaleSec: 4, holdSec: 4, exhaleSec: 4, holdOutSec: 4 },
+  sleepPrep: { inhaleSec: 4, holdSec: 7, exhaleSec: 8, holdOutSec: 0 },
+  mindful: { inhaleSec: 4, holdSec: 2, exhaleSec: 4, holdOutSec: 2 },
+};
+
+/** Dropdown entries, in display order. */
+export const PRACTICE_OPTIONS: {
+  value: BreathingPractice;
+  label: string;
+  technique: string;
+}[] = [
+  { value: 'custom', label: 'Custom', technique: 'Your own timings' },
+  { value: 'quickCalm', label: 'Quick Calm', technique: 'Physiological Sigh' },
+  { value: 'dailyBalance', label: 'Daily Balance', technique: 'Resonance Breathing' },
+  { value: 'focusMode', label: 'Focus Mode', technique: 'Box Breathing' },
+  { value: 'sleepPrep', label: 'Sleep Preparation', technique: '4-7-8 Breathing' },
+  { value: 'mindful', label: 'Mindful Meditation', technique: 'Alternate Nostril' },
 ];
 
 /** AsyncStorage key. Versioned so the shape can evolve safely later. */

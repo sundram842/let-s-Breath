@@ -5,14 +5,17 @@ import {
   DEFAULT_DURATIONS,
   DEFAULT_HAPTIC_INTENSITY,
   DEFAULT_HAPTICS_ENABLED,
+  DEFAULT_PRACTICE,
   DEFAULT_SESSION,
   DEFAULT_SOUND_ENABLED,
   defaultThemePreference,
   DURATION_LIMITS,
+  HOLD_DURATION_MIN,
+  PRACTICE_OPTIONS,
   SESSION_LIMITS,
   SETTINGS_STORAGE_KEY,
 } from './constants';
-import type { HapticIntensity, PersistedSettings } from './types';
+import type { BreathingPractice, HapticIntensity, PersistedSettings } from './types';
 
 function makeDefaults(): PersistedSettings {
   return {
@@ -23,15 +26,17 @@ function makeDefaults(): PersistedSettings {
     session: DEFAULT_SESSION,
     themePreference: defaultThemePreference(),
     backgroundEnabled: DEFAULT_BACKGROUND_ENABLED,
+    practice: DEFAULT_PRACTICE,
   };
 }
 
 const INTENSITIES: HapticIntensity[] = ['gentle', 'medium', 'strong'];
+const PRACTICES = PRACTICE_OPTIONS.map((o) => o.value);
 
-/** Clamp a duration (seconds) into the allowed range. */
-function clampDuration(value: number): number {
-  if (!Number.isFinite(value)) return DURATION_LIMITS.min;
-  return Math.min(DURATION_LIMITS.max, Math.max(DURATION_LIMITS.min, Math.round(value)));
+/** Clamp a duration (seconds) into [min, max]. Holds allow 0, inhale/exhale ≥ 1. */
+function clampDuration(value: number, min: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(DURATION_LIMITS.max, Math.max(min, Math.round(value)));
 }
 
 /** Clamp an integer into [min, max], falling back to `dflt` if not a number. */
@@ -62,11 +67,14 @@ function normalize(raw: unknown): PersistedSettings | null {
   return {
     themePreference: r.themePreference === 'dark' ? 'dark' : r.themePreference === 'light' ? 'light' : defaultThemePreference(),
     backgroundEnabled: bool(r.backgroundEnabled, DEFAULT_BACKGROUND_ENABLED),
+    practice: PRACTICES.includes(r.practice as BreathingPractice)
+      ? (r.practice as BreathingPractice)
+      : DEFAULT_PRACTICE,
     durations: {
-      inhaleSec: clampDuration(r.inhaleSec as number),
-      holdSec: clampDuration(r.holdSec as number),
-      exhaleSec: clampDuration(r.exhaleSec as number),
-      holdOutSec: clampDuration(num(r.holdOutSec, DEFAULT_DURATIONS.holdOutSec)),
+      inhaleSec: clampDuration(r.inhaleSec as number, DURATION_LIMITS.min),
+      holdSec: clampDuration(r.holdSec as number, HOLD_DURATION_MIN),
+      exhaleSec: clampDuration(r.exhaleSec as number, DURATION_LIMITS.min),
+      holdOutSec: clampDuration(num(r.holdOutSec, DEFAULT_DURATIONS.holdOutSec), HOLD_DURATION_MIN),
     },
     hapticsEnabled: bool(r.hapticsEnabled, DEFAULT_HAPTICS_ENABLED),
     hapticIntensity: INTENSITIES.includes(r.hapticIntensity as HapticIntensity)
@@ -107,6 +115,7 @@ function serialize(s: PersistedSettings): string {
     durationInfinite: s.session.durationInfinite,
     themePreference: s.themePreference,
     backgroundEnabled: s.backgroundEnabled,
+    practice: s.practice,
   });
 }
 

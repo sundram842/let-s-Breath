@@ -32,6 +32,8 @@ export interface UseBreathingAnimationResult {
   progress: SharedValue<number>;
   /** Current phase, for logic. */
   phase: BreathingPhase;
+  /** Raw phase index 0-3 (inhale, hold-full, exhale, hold-empty) for cue engines. */
+  phaseIndex: number;
   /** Human label for the current phase ("Inhale" / "Hold" / "Exhale"). */
   phaseLabel: string;
   /** Remaining cycles, counts down to 0. */
@@ -141,6 +143,7 @@ export function useBreathingAnimation({
   return {
     progress,
     phase,
+    phaseIndex,
     phaseLabel: PHASE_LABELS[phase],
     cyclesLeft,
   };

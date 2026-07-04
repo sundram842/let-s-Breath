@@ -6,5 +6,5 @@ export {
 export { SettingsScreen } from './SettingsScreen';
 export { DurationSlider, type DurationSliderProps } from './components/DurationSlider';
 export { formatDuration } from './utils/formatDuration';
-export { DEFAULT_DURATIONS, DURATION_LIMITS } from './constants';
-export type { BreathingDurations, DurationKey } from './types';
+export { DEFAULT_DURATIONS, DEFAULT_HAPTICS_ENABLED, DURATION_LIMITS } from './constants';
+export type { BreathingDurations, DurationKey, PersistedSettings } from './types';

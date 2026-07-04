@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -20,18 +20,27 @@ import type { BreathingConfig } from './types';
 export function BreathingScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { durations } = useBreathingSettings();
+  const { durations, hapticsEnabled } = useBreathingSettings();
 
-  // Map the three saved durations onto the animation config. There is no
-  // post-exhale hold, so the cycle is Inhale → Hold → Exhale, then repeats.
+  // Box breathing: Inhale → Hold (full) → Exhale → Hold (empty) → repeat.
+  // The empty hold reuses the "Hold" duration so all four phases are real.
   const config = useMemo<BreathingConfig>(
     () => ({
       inhaleMs: durations.inhaleSec * 1000,
       holdInMs: durations.holdSec * 1000,
       exhaleMs: durations.exhaleSec * 1000,
-      holdOutMs: 0,
+      holdOutMs: durations.holdSec * 1000,
     }),
     [durations],
+  );
+
+  // Only buzz while this screen is actually focused (not while on Settings).
+  const [focused, setFocused] = useState(true);
+  useFocusEffect(
+    useCallback(() => {
+      setFocused(true);
+      return () => setFocused(false);
+    }, []),
   );
 
   return (
@@ -44,7 +53,7 @@ export function BreathingScreen() {
       <StatusBar style="light" />
 
       <View style={styles.center}>
-        <BreathingCircle config={config} />
+        <BreathingCircle config={config} hapticsEnabled={hapticsEnabled && focused} />
       </View>
 
       <Pressable

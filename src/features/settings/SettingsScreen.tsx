@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Switch, View } from 'react-native';
 
 import { Spacing } from '@/constants/theme';
 import { ThemedText } from '@/components/themed-text';
@@ -14,7 +14,7 @@ import { useBreathingSettings } from './context/SettingsProvider';
  */
 export function SettingsScreen() {
   const theme = useTheme();
-  const { durations, setDuration } = useBreathingSettings();
+  const { durations, setDuration, hapticsEnabled, setHapticsEnabled } = useBreathingSettings();
 
   return (
     <ThemedView style={styles.container}>
@@ -47,6 +47,29 @@ export function SettingsScreen() {
           Each phase can range from 1 sec to 20 min. Changes are saved
           automatically and used in your next breath.
         </ThemedText>
+
+        <ThemedText type="small" themeColor="textSecondary" style={styles.sectionTitle}>
+          GUIDANCE
+        </ThemedText>
+
+        <ThemedView type="backgroundElement" style={styles.card}>
+          <View style={styles.toggleRow}>
+            <View style={styles.toggleText}>
+              <ThemedText type="default">Haptic Breathing Guidance</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                Vibrates in sync with each phase, so you can follow along with
+                your eyes closed or the phone in your pocket.
+              </ThemedText>
+            </View>
+            <Switch
+              value={hapticsEnabled}
+              onValueChange={setHapticsEnabled}
+              trackColor={{ true: theme.text, false: theme.backgroundSelected }}
+              thumbColor={Platform.OS === 'android' ? theme.background : undefined}
+              accessibilityLabel="Haptic breathing guidance"
+            />
+          </View>
+        </ThemedView>
       </ScrollView>
     </ThemedView>
   );
@@ -77,5 +100,16 @@ const styles = StyleSheet.create({
   hint: {
     marginHorizontal: Spacing.two,
     lineHeight: 20,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.three,
+    paddingVertical: Spacing.two,
+  },
+  toggleText: {
+    flex: 1,
+    gap: Spacing.half,
   },
 });

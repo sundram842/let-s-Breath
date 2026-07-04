@@ -6,3 +6,10 @@ export interface BreathingDurations {
 }
 
 export type DurationKey = keyof BreathingDurations;
+
+/** Everything persisted for the breathing experience. */
+export interface PersistedSettings {
+  durations: BreathingDurations;
+  /** Haptic (vibration) guidance toggle. */
+  hapticsEnabled: boolean;
+}

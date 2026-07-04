@@ -16,5 +16,8 @@ export const DEFAULT_DURATIONS: BreathingDurations = {
   exhaleSec: 4,
 };
 
+/** Haptic guidance is opt-in. */
+export const DEFAULT_HAPTICS_ENABLED = false;
+
 /** AsyncStorage key. Versioned so the shape can evolve safely later. */
 export const SETTINGS_STORAGE_KEY = 'letbreath.durations.v1';

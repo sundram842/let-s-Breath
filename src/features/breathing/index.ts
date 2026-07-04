@@ -9,5 +9,10 @@ export {
   type UseBreathingAnimationResult,
 } from './hooks/useBreathingAnimation';
 export { useBreathingSound } from './hooks/useBreathingSound';
+export {
+  useBreathingHaptics,
+  type UseBreathingHapticsParams,
+} from './hooks/useBreathingHaptics';
+export { HapticEngine, HAPTIC_PATTERN, type HapticPhase } from './haptics/hapticEngine';
 export { BREATHING_CONFIG } from './constants';
 export type { BreathingConfig, BreathingPhase } from './types';

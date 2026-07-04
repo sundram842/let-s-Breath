@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
-import { RING } from '../constants';
+import { BREATHING_CONFIG, RING } from '../constants';
 import { useBreathingAnimation } from '../hooks/useBreathingAnimation';
+import { useBreathingHaptics } from '../hooks/useBreathingHaptics';
 import { useBreathingSound } from '../hooks/useBreathingSound';
 import type { BreathingConfig } from '../types';
 import { CenterLabel } from './CenterLabel';
@@ -17,19 +18,24 @@ export interface BreathingCircleProps {
   onComplete?: () => void;
   /** Silence the inhale/hold/exhale voice cues. */
   muted?: boolean;
+  /** Play phase-synced vibration guidance (off by default). */
+  hapticsEnabled?: boolean;
 }
 
 /**
- * Self-contained breathing widget: responsive sizing + animation + ring + label.
- * Drop it anywhere; it fills to a share of the screen's shorter side.
+ * Self-contained breathing widget: responsive sizing + animation + ring + label,
+ * plus optional voice and haptic guidance. Drop it anywhere; it fills to a
+ * share of the screen's shorter side.
  */
 export function BreathingCircle({
   config,
   totalCycles,
   onComplete,
   muted = false,
+  hapticsEnabled = false,
 }: BreathingCircleProps) {
   const { width, height } = useWindowDimensions();
+  const resolvedConfig = config ?? BREATHING_CONFIG;
 
   const size = useMemo(
     () => Math.min(Math.min(width, height) * RING.sizeRatio, RING.maxSize),
@@ -37,14 +43,17 @@ export function BreathingCircle({
   );
   const strokeWidth = size * RING.strokeRatio;
 
-  const { progress, phase, phaseLabel, cyclesLeft } = useBreathingAnimation({
-    config,
+  const { progress, phaseIndex, phaseLabel, cyclesLeft } = useBreathingAnimation({
+    config: resolvedConfig,
     totalCycles,
     onComplete,
   });
 
   // Guided voice cues, synced to the phase transitions.
-  useBreathingSound(phase, !muted);
+  useBreathingSound(phaseIndex, !muted);
+
+  // Phase-synced vibration guidance (opt-in via Settings).
+  useBreathingHaptics({ phaseIndex, config: resolvedConfig, enabled: hapticsEnabled });
 
   const subtitle = `${cyclesLeft} ${cyclesLeft === 1 ? 'cycle' : 'cycles'} left`;
 

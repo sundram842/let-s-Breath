@@ -1,0 +1,75 @@
+import { StyleSheet, Text, View } from 'react-native';
+
+import { colors, typography } from '@/theme';
+import { RING } from '../constants';
+
+export interface CenterLabelProps {
+  /** Large phase text, e.g. "Inhale". */
+  title: string;
+  /** Small secondary text, e.g. "10 cycles left". */
+  subtitle: string;
+  /** Circle size — font sizes scale from it for responsiveness. */
+  size: number;
+}
+
+/**
+ * Text overlay centered inside the ring. Rendered with plain RN <Text>
+ * (crisper than canvas text and no font asset to load). The title sits at the
+ * optical center; the subtitle sits lower, matching the design.
+ */
+export function CenterLabel({ title, subtitle, size }: CenterLabelProps) {
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <View style={styles.titleWrap}>
+        <Text
+          style={[styles.title, { fontSize: size * RING.titleRatio }]}
+          numberOfLines={1}
+          allowFontScaling={false}
+        >
+          {title}
+        </Text>
+      </View>
+
+      <Text
+        style={[
+          styles.subtitle,
+          {
+            fontSize: size * RING.subtitleRatio,
+            bottom: size * RING.subtitleBottomRatio,
+          },
+        ]}
+        numberOfLines={1}
+        allowFontScaling={false}
+      >
+        {subtitle}
+      </Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  titleWrap: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  title: {
+    color: colors.breathing.title,
+    fontWeight: typography.weights.medium,
+    letterSpacing: typography.letterSpacing.wide,
+    textAlign: 'center',
+  },
+  subtitle: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    color: colors.breathing.subtitle,
+    fontWeight: typography.weights.regular,
+    letterSpacing: typography.letterSpacing.wide,
+  },
+});

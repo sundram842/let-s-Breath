@@ -1,24 +1,30 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
+  DEFAULT_BACKGROUND_ENABLED,
   DEFAULT_DURATIONS,
   DEFAULT_HAPTIC_INTENSITY,
   DEFAULT_HAPTICS_ENABLED,
   DEFAULT_SESSION,
   DEFAULT_SOUND_ENABLED,
+  defaultThemePreference,
   DURATION_LIMITS,
   SESSION_LIMITS,
   SETTINGS_STORAGE_KEY,
 } from './constants';
 import type { HapticIntensity, PersistedSettings } from './types';
 
-const DEFAULTS: PersistedSettings = {
-  durations: DEFAULT_DURATIONS,
-  hapticsEnabled: DEFAULT_HAPTICS_ENABLED,
-  hapticIntensity: DEFAULT_HAPTIC_INTENSITY,
-  soundEnabled: DEFAULT_SOUND_ENABLED,
-  session: DEFAULT_SESSION,
-};
+function makeDefaults(): PersistedSettings {
+  return {
+    durations: DEFAULT_DURATIONS,
+    hapticsEnabled: DEFAULT_HAPTICS_ENABLED,
+    hapticIntensity: DEFAULT_HAPTIC_INTENSITY,
+    soundEnabled: DEFAULT_SOUND_ENABLED,
+    session: DEFAULT_SESSION,
+    themePreference: defaultThemePreference(),
+    backgroundEnabled: DEFAULT_BACKGROUND_ENABLED,
+  };
+}
 
 const INTENSITIES: HapticIntensity[] = ['gentle', 'medium', 'strong'];
 
@@ -54,6 +60,8 @@ function normalize(raw: unknown): PersistedSettings | null {
   if (!base.every((k) => typeof r[k] === 'number')) return null;
 
   return {
+    themePreference: r.themePreference === 'dark' ? 'dark' : r.themePreference === 'light' ? 'light' : defaultThemePreference(),
+    backgroundEnabled: bool(r.backgroundEnabled, DEFAULT_BACKGROUND_ENABLED),
     durations: {
       inhaleSec: clampDuration(r.inhaleSec as number),
       holdSec: clampDuration(r.holdSec as number),
@@ -97,17 +105,20 @@ function serialize(s: PersistedSettings): string {
     cyclesInfinite: s.session.cyclesInfinite,
     sessionMinutes: s.session.sessionMinutes,
     durationInfinite: s.session.durationInfinite,
+    themePreference: s.themePreference,
+    backgroundEnabled: s.backgroundEnabled,
   });
 }
 
 /** Load persisted settings, falling back to defaults if missing/corrupt. */
 export async function loadSettings(): Promise<PersistedSettings> {
+  const defaults = makeDefaults();
   try {
     const raw = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
-    if (!raw) return DEFAULTS;
-    return normalize(JSON.parse(raw)) ?? DEFAULTS;
+    if (!raw) return defaults;
+    return normalize(JSON.parse(raw)) ?? defaults;
   } catch {
-    return DEFAULTS;
+    return defaults;
   }
 }
 

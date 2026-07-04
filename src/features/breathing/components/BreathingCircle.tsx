@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, type RefObject } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import type { HapticIntensity } from '@/features/settings';
@@ -23,9 +23,13 @@ export interface BreathingCircleProps {
   hapticsEnabled?: boolean;
   /** Vibration strength. */
   hapticIntensity?: HapticIntensity;
-  /** When false, freeze the animation (e.g. session finished). */
+  /** When false, freeze the animation in place (pause / session finished). */
   running?: boolean;
-  /** Replace the phase label (e.g. "Session complete"). */
+  /** Bump to reset the session to the very start. */
+  restartKey?: number;
+  /** Populated with the animation's `advanceBy` so the screen can fast-forward. */
+  advanceRef?: RefObject<((ms: number) => void) | null>;
+  /** Replace the phase label (e.g. "Session complete" / "Paused"). */
   titleOverride?: string;
   /** Replace the "N cycles left" line (e.g. a time countdown or "∞"). */
   subtitleOverride?: string;
@@ -44,6 +48,8 @@ export function BreathingCircle({
   hapticsEnabled = false,
   hapticIntensity = 'medium',
   running = true,
+  restartKey = 0,
+  advanceRef,
   titleOverride,
   subtitleOverride,
 }: BreathingCircleProps) {
@@ -56,12 +62,22 @@ export function BreathingCircle({
   );
   const strokeWidth = size * RING.strokeRatio;
 
-  const { progress, phaseIndex, phaseLabel, cyclesLeft } = useBreathingAnimation({
+  const { progress, phaseIndex, phaseLabel, cyclesLeft, advanceBy } = useBreathingAnimation({
     config: resolvedConfig,
     totalCycles,
     running,
+    restartKey,
     onComplete,
   });
+
+  // Expose advanceBy to the parent screen (for background catch-up).
+  useEffect(() => {
+    if (!advanceRef) return;
+    advanceRef.current = advanceBy;
+    return () => {
+      advanceRef.current = null;
+    };
+  }, [advanceRef, advanceBy]);
 
   // Guided voice cues, synced to the phase transitions.
   useBreathingSound(phaseIndex, !muted && running);

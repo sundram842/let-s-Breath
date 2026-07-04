@@ -20,7 +20,9 @@ export {
   DEFAULT_HAPTIC_INTENSITY,
   DEFAULT_SOUND_ENABLED,
   DEFAULT_SESSION,
+  DEFAULT_BACKGROUND_ENABLED,
   HAPTIC_INTENSITY_OPTIONS,
+  THEME_OPTIONS,
   SESSION_LIMITS,
   DURATION_LIMITS,
 } from './constants';
@@ -30,5 +32,6 @@ export type {
   HapticIntensity,
   SessionConfig,
   SessionMode,
+  ThemePreference,
   PersistedSettings,
 } from './types';

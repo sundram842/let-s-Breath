@@ -2,8 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState, Pressable, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Spacing } from '@/constants/theme';
@@ -11,6 +11,8 @@ import { useBreathingSettings } from '@/features/settings';
 import { colors } from '@/theme';
 import { BreathingCircle } from './components/BreathingCircle';
 import type { BreathingConfig } from './types';
+
+type Status = 'running' | 'paused' | 'complete';
 
 /** ms → "M:SS". */
 function formatClock(ms: number): string {
@@ -21,15 +23,15 @@ function formatClock(ms: number): string {
 }
 
 /**
- * First screen: full-bleed blue gradient with the breathing circle centered.
- * Runs a session using the latest saved settings — ending after a set number of
- * cycles, after a set time, or never (infinite). Tap the circle to start again
- * once a session completes. A gear button top-right opens Settings.
+ * First screen: full-bleed gradient with the breathing circle centered, plus a
+ * Pause/Resume control. Settings apply live (no restart); opening Settings or
+ * (optionally) backgrounding the app pauses the session while preserving the
+ * exact phase and remaining time.
  */
 export function BreathingScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { durations, hapticsEnabled, hapticIntensity, soundEnabled, session } =
+  const { durations, hapticsEnabled, hapticIntensity, soundEnabled, session, backgroundEnabled } =
     useBreathingSettings();
 
   // Box breathing: Inhale → Hold (full) → Exhale → Hold (empty) → repeat.
@@ -43,8 +45,6 @@ export function BreathingScreen() {
     [durations],
   );
 
-  // Cycle target: a finite count only in cycle mode; otherwise the session
-  // never ends by cycles (duration mode uses a timer; infinite never ends).
   const totalCycles =
     session.mode === 'cycles' && !session.cyclesInfinite ? session.cycleCount : Infinity;
   const durationMs =
@@ -52,65 +52,101 @@ export function BreathingScreen() {
       ? session.sessionMinutes * 60_000
       : null;
 
-  // Only buzz while this screen is focused (not while on Settings).
-  const [focused, setFocused] = useState(true);
-  useFocusEffect(
-    useCallback(() => {
-      setFocused(true);
-      return () => setFocused(false);
-    }, []),
-  );
-
-  // --- Session lifecycle ---------------------------------------------------
-  const [status, setStatus] = useState<'running' | 'complete'>('running');
+  const [status, setStatus] = useState<Status>('running');
+  const [restartKey, setRestartKey] = useState(0);
   const [remainingMs, setRemainingMs] = useState<number | null>(durationMs);
 
-  // Restart the session whenever the settings that define it change (done in
-  // render — React's pattern — so it takes effect immediately).
-  const signature = `${config.inhaleMs}|${config.holdInMs}|${config.exhaleMs}|${config.holdOutMs}|${totalCycles}|${durationMs}`;
-  const [prevSignature, setPrevSignature] = useState(signature);
-  if (prevSignature !== signature) {
-    setPrevSignature(signature);
-    setStatus('running');
+  const running = status === 'running';
+  const advanceRef = useRef<((ms: number) => void) | null>(null);
+  const remainingRef = useRef<number | null>(durationMs);
+  const lastTickRef = useRef<number | null>(null);
+  const backgroundedAtRef = useRef<number | null>(null);
+
+  // Reset the duration display when the target changes or on restart — state in
+  // render (React's pattern), ref in an effect (never mutate a ref in render).
+  const durationSig = `${durationMs}|${restartKey}`;
+  const [prevDurationSig, setPrevDurationSig] = useState(durationSig);
+  if (prevDurationSig !== durationSig) {
+    setPrevDurationSig(durationSig);
     setRemainingMs(durationMs);
   }
-
-  const running = status === 'running';
-
-  // Count down the clock in duration mode; end the session at zero.
   useEffect(() => {
-    if (!running || durationMs == null) return;
-    const start = Date.now();
+    remainingRef.current = durationMs;
+  }, [durationMs, restartKey]);
+
+  // Pausable duration countdown: only ticks while running; `dt` naturally
+  // absorbs any suspended (backgrounded) time so it self-corrects on resume.
+  useEffect(() => {
+    if (status !== 'running' || durationMs == null) {
+      lastTickRef.current = null;
+      return;
+    }
+    lastTickRef.current = Date.now();
     const id = setInterval(() => {
-      const left = durationMs - (Date.now() - start);
+      const now = Date.now();
+      const dt = now - (lastTickRef.current ?? now);
+      lastTickRef.current = now;
+      const left = Math.max(0, (remainingRef.current ?? durationMs) - dt);
+      remainingRef.current = left;
+      setRemainingMs(left);
       if (left <= 0) {
-        setRemainingMs(0);
         setStatus('complete');
-      } else {
-        setRemainingMs(left);
+        clearInterval(id);
       }
     }, 250);
     return () => clearInterval(id);
-  }, [running, durationMs]);
+  }, [status, durationMs]);
+
+  // Auto-pause when leaving the screen (e.g. opening Settings).
+  useFocusEffect(
+    useCallback(() => {
+      return () => setStatus((s) => (s === 'running' ? 'paused' : s));
+    }, []),
+  );
+
+  // Background handling.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'background') {
+        if (backgroundEnabled) {
+          backgroundedAtRef.current = Date.now();
+        } else {
+          setStatus((s) => (s === 'running' ? 'paused' : s));
+        }
+      } else if (next === 'active' && backgroundedAtRef.current != null) {
+        const elapsed = Date.now() - backgroundedAtRef.current;
+        backgroundedAtRef.current = null;
+        // Fast-forward the cycle position + count; the duration interval
+        // self-corrects its own remaining time on its next tick.
+        advanceRef.current?.(elapsed);
+      }
+    });
+    return () => sub.remove();
+  }, [backgroundEnabled]);
 
   const handleCyclesDone = useCallback(() => setStatus('complete'), []);
+  const togglePause = useCallback(
+    () => setStatus((s) => (s === 'running' ? 'paused' : s === 'paused' ? 'running' : s)),
+    [],
+  );
   const restart = useCallback(() => {
-    setRemainingMs(durationMs);
+    setRestartKey((k) => k + 1);
     setStatus('running');
-  }, [durationMs]);
+  }, []);
 
-  // What the center label shows.
+  // Center label.
   let titleOverride: string | undefined;
   let subtitleOverride: string | undefined;
   if (status === 'complete') {
     titleOverride = 'Session complete';
     subtitleOverride = 'Tap to start again';
+  } else if (status === 'paused') {
+    subtitleOverride = 'Paused';
   } else if (durationMs != null) {
     subtitleOverride = `${formatClock(remainingMs ?? durationMs)} left`;
   } else if (totalCycles === Infinity) {
     subtitleOverride = 'Breathe until you’re ready';
   }
-  // else: finite cycle mode → BreathingCircle shows "N cycles left".
 
   const complete = status === 'complete';
 
@@ -134,14 +170,35 @@ export function BreathingScreen() {
           config={config}
           totalCycles={totalCycles}
           running={running}
+          restartKey={restartKey}
+          advanceRef={advanceRef}
           onComplete={handleCyclesDone}
           muted={!soundEnabled}
-          hapticsEnabled={hapticsEnabled && focused}
+          hapticsEnabled={hapticsEnabled}
           hapticIntensity={hapticIntensity}
           titleOverride={titleOverride}
           subtitleOverride={subtitleOverride}
         />
       </Pressable>
+
+      {!complete && (
+        <Pressable
+          onPress={togglePause}
+          accessibilityRole="button"
+          accessibilityLabel={running ? 'Pause session' : 'Resume session'}
+          style={({ pressed }) => [
+            styles.pauseButton,
+            { bottom: insets.bottom + Spacing.six, opacity: pressed ? 0.6 : 1 },
+          ]}
+        >
+          <Ionicons
+            name={running ? 'pause' : 'play'}
+            size={22}
+            color={colors.breathing.title}
+          />
+          <Text style={styles.pauseLabel}>{running ? 'Pause' : 'Resume'}</Text>
+        </Pressable>
+      )}
 
       <Pressable
         onPress={() => router.push('/settings')}
@@ -167,6 +224,22 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  pauseButton: {
+    position: 'absolute',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.five,
+    borderRadius: Spacing.five,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+  },
+  pauseLabel: {
+    color: colors.breathing.title,
+    fontSize: 16,
+    fontWeight: '600',
   },
   settingsButton: {
     position: 'absolute',

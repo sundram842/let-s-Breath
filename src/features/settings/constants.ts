@@ -1,4 +1,11 @@
-import type { BreathingDurations, HapticIntensity, SessionConfig } from './types';
+import { Appearance } from 'react-native';
+
+import type {
+  BreathingDurations,
+  HapticIntensity,
+  SessionConfig,
+  ThemePreference,
+} from './types';
 
 /** Slider range shared by all three duration controls. */
 export const DURATION_LIMITS = {
@@ -47,6 +54,19 @@ export const DEFAULT_SESSION: SessionConfig = {
   sessionMinutes: 5,
   durationInfinite: false,
 };
+
+/** First-run appearance follows the device; explicit once the user chooses. */
+export function defaultThemePreference(): ThemePreference {
+  return Appearance.getColorScheme() === 'dark' ? 'dark' : 'light';
+}
+
+/** Background practice is opt-in. */
+export const DEFAULT_BACKGROUND_ENABLED = false;
+
+export const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+];
 
 /** AsyncStorage key. Versioned so the shape can evolve safely later. */
 export const SETTINGS_STORAGE_KEY = 'letbreath.durations.v1';

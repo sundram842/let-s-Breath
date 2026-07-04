@@ -1,13 +1,16 @@
+/*
+ * Reanimated shared values are mutable by design (advanced on the UI thread by
+ * the frame loop and fast-forwarded by advanceBy). The React Compiler's
+ * immutability rule flags those `.value` writes as false positives here.
+ */
+/* eslint-disable react-hooks/immutability */
 import { useCallback, useEffect, useState } from 'react';
 import {
-  cancelAnimation,
-  Easing,
   runOnJS,
   useAnimatedReaction,
   useDerivedValue,
+  useFrameCallback,
   useSharedValue,
-  withRepeat,
-  withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
 
@@ -24,23 +27,27 @@ export interface UseBreathingAnimationParams {
   config?: BreathingConfig;
   /** How many cycles to count down from (pass Infinity to never end). */
   totalCycles?: number;
-  /** When false, the animation freezes and resets (used for session end). */
+  /** Pause (false) freezes in place; resume (true) continues — no restart. */
   running?: boolean;
+  /** Bump this to reset the session to the very start. */
+  restartKey?: number;
   /** Fired once when the last cycle completes. */
   onComplete?: () => void;
 }
 
 export interface UseBreathingAnimationResult {
-  /** Ring fill 0..1, updated every frame on the UI thread. Feed to Skia. */
+  /** Ring fill 0..1, updated every frame on the UI thread. */
   progress: SharedValue<number>;
   /** Current phase, for logic. */
   phase: BreathingPhase;
   /** Raw phase index 0-3 (inhale, hold-full, exhale, hold-empty) for cue engines. */
   phaseIndex: number;
-  /** Human label for the current phase ("Inhale" / "Hold" / "Exhale"). */
+  /** Human label for the current phase. */
   phaseLabel: string;
   /** Remaining cycles, counts down to 0. */
   cyclesLeft: number;
+  /** Fast-forward the session by `ms` (used to catch up after background). */
+  advanceBy: (ms: number) => void;
 }
 
 /** Ease-in-out for a soft, relaxing acceleration. Runs on the UI thread. */
@@ -51,59 +58,75 @@ function smoothstep(x: number): number {
 }
 
 /**
- * Drives the whole breathing animation from a single linear timeline that
- * repeats forever. `progress` and `phase` are *derived* from that timeline,
- * so there are no timers, no callbacks mid-cycle, and looping is seamless
- * (no jumps / no flicker). Progress is what the Skia ring consumes.
+ * Drives the breathing animation from a single normalized clock (0→1 per cycle)
+ * advanced by a UI-thread frame loop. `progress` and `phase` are *derived* from
+ * that clock, so pausing = stop advancing (position preserved), and resuming =
+ * continue from the exact same point. `advanceBy` jumps the clock forward to
+ * reconcile time spent in the background.
  */
 export function useBreathingAnimation({
   config = BREATHING_CONFIG,
   totalCycles = DEFAULT_TOTAL_CYCLES,
   running = true,
+  restartKey = 0,
   onComplete,
 }: UseBreathingAnimationParams = {}): UseBreathingAnimationResult {
   const { inhaleMs, holdInMs, exhaleMs, holdOutMs } = config;
   const total = inhaleMs + holdInMs + exhaleMs + holdOutMs;
 
-  // 0 → 1 over one full cycle, looping forever. The single source of truth.
-  const clock = useSharedValue(0);
+  const clock = useSharedValue(0); // 0..1 position within the current cycle
+  const cyclesElapsed = useSharedValue(0); // monotonic; deltas drive the counter
+  const totalSV = useSharedValue(total); // read inside the frame worklet
+  useEffect(() => {
+    totalSV.value = total;
+  }, [total, totalSV]);
+
   const [phaseIndex, setPhaseIndex] = useState(0);
   const [cyclesLeft, setCyclesLeft] = useState(totalCycles);
 
-  // Reset the countdown when `totalCycles` changes, or whenever a fresh session
-  // starts (running goes false → true) — done during render (React's pattern).
+  // Reset the counter when the target changes or the session is restarted —
+  // during render (React's pattern), never touching the clock position here.
   const [prevTotalCycles, setPrevTotalCycles] = useState(totalCycles);
   if (prevTotalCycles !== totalCycles) {
     setPrevTotalCycles(totalCycles);
     setCyclesLeft(totalCycles);
   }
-  const [prevRunning, setPrevRunning] = useState(running);
-  if (prevRunning !== running) {
-    setPrevRunning(running);
-    if (running) setCyclesLeft(totalCycles);
+  const [prevRestartKey, setPrevRestartKey] = useState(restartKey);
+  if (prevRestartKey !== restartKey) {
+    setPrevRestartKey(restartKey);
+    setCyclesLeft(totalCycles);
   }
 
+  // On restart, rewind the clock to the very start of the cycle.
   useEffect(() => {
-    if (!running) {
-      cancelAnimation(clock);
-      clock.value = 0;
-      return;
-    }
     clock.value = 0;
-    clock.value = withRepeat(
-      withTiming(1, { duration: total, easing: Easing.linear }),
-      -1, // infinite
-      false, // don't reverse — the timeline models the full cycle itself
-    );
-    return () => {
-      cancelAnimation(clock);
-      clock.value = 0;
-    };
-  }, [clock, total, running]);
+  }, [clock, restartKey]);
+
+  // Advance the clock each frame; tally whole cycles as they pass.
+  const frame = useFrameCallback((info) => {
+    'worklet';
+    const t = totalSV.value;
+    const dt = info.timeSincePreviousFrame ?? 0;
+    // Ignore abnormal deltas (a frame hitch, or the big spike when returning
+    // from background) — catch-up is handled deterministically by advanceBy.
+    if (t <= 0 || dt <= 0 || dt > 250) return;
+    const next = clock.value + dt / t;
+    if (next >= 1) {
+      cyclesElapsed.value += Math.floor(next);
+      clock.value = next - Math.floor(next);
+    } else {
+      clock.value = next;
+    }
+  }, false);
+
+  // Run only while `running` — pausing simply stops the frame loop in place.
+  useEffect(() => {
+    frame.setActive(running);
+  }, [frame, running]);
 
   // Ring fill: eased on inhale/exhale, flat during holds.
   const progress = useDerivedValue(() => {
-    const t = clock.value * total; // ms into the current cycle
+    const t = clock.value * total;
     if (t < inhaleMs) return smoothstep(t / inhaleMs);
     if (t < inhaleMs + holdInMs) return 1;
     if (t < inhaleMs + holdInMs + exhaleMs) {
@@ -112,9 +135,7 @@ export function useBreathingAnimation({
     return 0;
   }, [inhaleMs, holdInMs, exhaleMs, total]);
 
-  // Phase index (0 inhale, 1 hold, 2 exhale, 3 hold). When there is no
-  // post-exhale hold (holdOutMs === 0) we stay on "exhale" at the boundary so
-  // it doesn't briefly flip to a hold and fire a stray cue before the wrap.
+  // Phase index (0 inhale, 1 hold-full, 2 exhale, 3 hold-empty).
   const phaseIndexSV = useDerivedValue(() => {
     const t = clock.value * total;
     if (t < inhaleMs) return 0;
@@ -123,7 +144,6 @@ export function useBreathingAnimation({
     return holdOutMs > 0 ? 3 : 2;
   }, [inhaleMs, holdInMs, exhaleMs, holdOutMs, total]);
 
-  // Only cross the bridge to React when the phase actually changes.
   useAnimatedReaction(
     () => phaseIndexSV.value,
     (curr, prev) => {
@@ -134,24 +154,38 @@ export function useBreathingAnimation({
     [],
   );
 
-  const handleCycleComplete = useCallback(() => {
-    setCyclesLeft((n) => {
-      if (n <= 0) return 0;
-      const next = n - 1;
-      if (next === 0) onComplete?.();
-      return next;
-    });
-  }, [onComplete]);
+  const handleCyclesElapsed = useCallback(
+    (delta: number) => {
+      setCyclesLeft((n) => {
+        if (!Number.isFinite(n) || n <= 0) return n; // Infinity / already done
+        const next = Math.max(0, n - delta);
+        if (next === 0) onComplete?.();
+        return next;
+      });
+    },
+    [onComplete],
+  );
 
-  // The timeline wraps (1 → 0) exactly once per full breath cycle.
+  // Decrement the counter whenever whole cycles are tallied (frame or advanceBy).
   useAnimatedReaction(
-    () => clock.value,
+    () => cyclesElapsed.value,
     (curr, prev) => {
-      if (prev !== null && curr < prev) {
-        runOnJS(handleCycleComplete)();
+      if (prev !== null && curr > prev) {
+        runOnJS(handleCyclesElapsed)(curr - prev);
       }
     },
-    [handleCycleComplete],
+    [handleCyclesElapsed],
+  );
+
+  const advanceBy = useCallback(
+    (ms: number) => {
+      if (ms <= 0 || total <= 0) return;
+      const absolute = clock.value * total + ms;
+      const whole = Math.floor(absolute / total);
+      if (whole > 0) cyclesElapsed.value = cyclesElapsed.value + whole;
+      clock.value = (absolute % total) / total;
+    },
+    [clock, cyclesElapsed, total],
   );
 
   const phase = PHASE_SEQUENCE[phaseIndex];
@@ -161,5 +195,6 @@ export function useBreathingAnimation({
     phaseIndex,
     phaseLabel: PHASE_LABELS[phase],
     cyclesLeft,
+    advanceBy,
   };
 }

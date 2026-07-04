@@ -8,11 +8,13 @@ import {
 } from 'react';
 
 import {
+  DEFAULT_BACKGROUND_ENABLED,
   DEFAULT_DURATIONS,
   DEFAULT_HAPTIC_INTENSITY,
   DEFAULT_HAPTICS_ENABLED,
   DEFAULT_SESSION,
   DEFAULT_SOUND_ENABLED,
+  defaultThemePreference,
 } from '../constants';
 import { loadSettings, saveSettings } from '../storage';
 import type {
@@ -20,6 +22,7 @@ import type {
   DurationKey,
   HapticIntensity,
   SessionConfig,
+  ThemePreference,
 } from '../types';
 
 interface SettingsContextValue {
@@ -28,6 +31,8 @@ interface SettingsContextValue {
   hapticIntensity: HapticIntensity;
   soundEnabled: boolean;
   session: SessionConfig;
+  themePreference: ThemePreference;
+  backgroundEnabled: boolean;
   /** True once AsyncStorage has been read at least once. */
   loaded: boolean;
   setDuration: (key: DurationKey, value: number) => void;
@@ -36,6 +41,8 @@ interface SettingsContextValue {
   setSoundEnabled: (value: boolean) => void;
   /** Merge a partial change into the session config. */
   setSession: (partial: Partial<SessionConfig>) => void;
+  setThemePreference: (value: ThemePreference) => void;
+  setBackgroundEnabled: (value: boolean) => void;
   resetDurations: () => void;
 }
 
@@ -54,6 +61,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   );
   const [soundEnabled, setSoundEnabled] = useState(DEFAULT_SOUND_ENABLED);
   const [session, setSessionState] = useState<SessionConfig>(DEFAULT_SESSION);
+  const [themePreference, setThemePreference] = useState<ThemePreference>(
+    defaultThemePreference,
+  );
+  const [backgroundEnabled, setBackgroundEnabled] = useState(DEFAULT_BACKGROUND_ENABLED);
   const [loaded, setLoaded] = useState(false);
 
   // Load persisted values once on startup.
@@ -66,6 +77,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setHapticIntensity(stored.hapticIntensity);
       setSoundEnabled(stored.soundEnabled);
       setSessionState(stored.session);
+      setThemePreference(stored.themePreference);
+      setBackgroundEnabled(stored.backgroundEnabled);
       setLoaded(true);
     });
     return () => {
@@ -78,10 +91,27 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!loaded) return;
     const timeout = setTimeout(() => {
-      void saveSettings({ durations, hapticsEnabled, hapticIntensity, soundEnabled, session });
+      void saveSettings({
+        durations,
+        hapticsEnabled,
+        hapticIntensity,
+        soundEnabled,
+        session,
+        themePreference,
+        backgroundEnabled,
+      });
     }, 300);
     return () => clearTimeout(timeout);
-  }, [durations, hapticsEnabled, hapticIntensity, soundEnabled, session, loaded]);
+  }, [
+    durations,
+    hapticsEnabled,
+    hapticIntensity,
+    soundEnabled,
+    session,
+    themePreference,
+    backgroundEnabled,
+    loaded,
+  ]);
 
   const value = useMemo<SettingsContextValue>(
     () => ({
@@ -90,15 +120,28 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       hapticIntensity,
       soundEnabled,
       session,
+      themePreference,
+      backgroundEnabled,
       loaded,
       setDuration: (key, val) => setDurations((prev) => ({ ...prev, [key]: val })),
       setHapticsEnabled,
       setHapticIntensity,
       setSoundEnabled,
       setSession: (partial) => setSessionState((prev) => ({ ...prev, ...partial })),
+      setThemePreference,
+      setBackgroundEnabled,
       resetDurations: () => setDurations(DEFAULT_DURATIONS),
     }),
-    [durations, hapticsEnabled, hapticIntensity, soundEnabled, session, loaded],
+    [
+      durations,
+      hapticsEnabled,
+      hapticIntensity,
+      soundEnabled,
+      session,
+      themePreference,
+      backgroundEnabled,
+      loaded,
+    ],
   );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

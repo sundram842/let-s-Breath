@@ -4,8 +4,10 @@ import { Spacing } from '@/constants/theme';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useTheme } from '@/hooks/use-theme';
+import { THEME_OPTIONS } from './constants';
 import { DurationSlider } from './components/DurationSlider';
 import { IntensitySelector } from './components/IntensitySelector';
+import { Segmented } from './components/Segmented';
 import { SessionModeControl } from './components/SessionModeControl';
 import { useBreathingSettings } from './context/SettingsProvider';
 
@@ -27,6 +29,10 @@ export function SettingsScreen() {
     setSoundEnabled,
     session,
     setSession,
+    themePreference,
+    setThemePreference,
+    backgroundEnabled,
+    setBackgroundEnabled,
   } = useBreathingSettings();
 
   const divider = <View style={[styles.divider, { backgroundColor: theme.backgroundSelected }]} />;
@@ -34,6 +40,22 @@ export function SettingsScreen() {
   return (
     <ThemedView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
+        {/* --- Appearance --- */}
+        <ThemedText type="small" themeColor="textSecondary" style={styles.sectionTitle}>
+          APPEARANCE
+        </ThemedText>
+
+        <ThemedView type="backgroundElement" style={styles.card}>
+          <View style={styles.intensityRow}>
+            <ThemedText type="default">Theme</ThemedText>
+            <Segmented
+              options={THEME_OPTIONS}
+              value={themePreference}
+              onChange={setThemePreference}
+            />
+          </View>
+        </ThemedView>
+
         {/* --- Breathing timer --- */}
         <ThemedText type="small" themeColor="textSecondary" style={styles.sectionTitle}>
           BREATHING TIMER
@@ -77,6 +99,25 @@ export function SettingsScreen() {
 
         <ThemedView type="backgroundElement" style={styles.card}>
           <SessionModeControl session={session} onChange={setSession} />
+
+          {divider}
+
+          <View style={styles.toggleRow}>
+            <View style={styles.toggleText}>
+              <ThemedText type="default">Continue Practice in Background</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                Keep the session going when the app is backgrounded. Off pauses it
+                until you return and tap Resume.
+              </ThemedText>
+            </View>
+            <Switch
+              value={backgroundEnabled}
+              onValueChange={setBackgroundEnabled}
+              trackColor={{ true: theme.text, false: theme.backgroundSelected }}
+              thumbColor={Platform.OS === 'android' ? theme.background : undefined}
+              accessibilityLabel="Continue practice in background"
+            />
+          </View>
         </ThemedView>
 
         <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>

@@ -12,6 +12,9 @@ export type DurationKey = keyof BreathingDurations;
 /** How strong the haptic guidance feels. */
 export type HapticIntensity = 'gentle' | 'medium' | 'strong';
 
+/** App appearance. */
+export type ThemePreference = 'light' | 'dark';
+
 /** How a session ends: after a number of cycles, or after a length of time. */
 export type SessionMode = 'cycles' | 'duration';
 
@@ -39,4 +42,8 @@ export interface PersistedSettings {
   soundEnabled: boolean;
   /** How the session ends. */
   session: SessionConfig;
+  /** Light or dark appearance. */
+  themePreference: ThemePreference;
+  /** Keep the session running while the app is backgrounded. */
+  backgroundEnabled: boolean;
 }

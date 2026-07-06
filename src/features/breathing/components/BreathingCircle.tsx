@@ -31,8 +31,14 @@ export interface BreathingCircleProps {
   running?: boolean;
   /** Bump to reset the session to the very start. */
   restartKey?: number;
+  /** Seed the clock partway into a cycle (ms) — used to resume a paused session. */
+  initialElapsedMs?: number;
+  /** Seed the remaining-cycles counter — used to resume a paused session. */
+  initialCyclesLeft?: number;
   /** Populated with the animation's `advanceBy` so the screen can fast-forward. */
   advanceRef?: RefObject<((ms: number) => void) | null>;
+  /** Populated with a getter for the live position, so the screen can snapshot it. */
+  snapshotRef?: RefObject<(() => { cycleElapsedMs: number; cyclesLeft: number }) | null>;
   /** Replace the phase label (e.g. "Session complete" / "Paused"). */
   titleOverride?: string;
   /** Replace the "N cycles left" line (e.g. a time countdown or "∞"). */
@@ -55,7 +61,10 @@ export function BreathingCircle({
   sessionRemainingMs = null,
   running = true,
   restartKey = 0,
+  initialElapsedMs = 0,
+  initialCyclesLeft,
   advanceRef,
+  snapshotRef,
   titleOverride,
   subtitleOverride,
 }: BreathingCircleProps) {
@@ -74,6 +83,8 @@ export function BreathingCircle({
       totalCycles,
       running,
       restartKey,
+      initialElapsedMs,
+      initialCyclesLeft,
       onComplete,
     });
 
@@ -103,6 +114,15 @@ export function BreathingCircle({
       advanceRef.current = null;
     };
   }, [advanceRef, advanceBy]);
+
+  // Expose a live-position getter so the screen can snapshot progress for resume.
+  useEffect(() => {
+    if (!snapshotRef) return;
+    snapshotRef.current = () => ({ cycleElapsedMs: getCycleElapsedMs(), cyclesLeft });
+    return () => {
+      snapshotRef.current = null;
+    };
+  }, [snapshotRef, getCycleElapsedMs, cyclesLeft]);
 
   // Guided voice cues, synced to the phase transitions.
   useBreathingSound(phaseIndex, !muted && running);

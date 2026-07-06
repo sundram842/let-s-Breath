@@ -4,7 +4,7 @@
  * immutability rule flags those `.value` writes as false positives here.
  */
 /* eslint-disable react-hooks/immutability */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   runOnJS,
   useAnimatedReaction,
@@ -31,6 +31,10 @@ export interface UseBreathingAnimationParams {
   running?: boolean;
   /** Bump this to reset the session to the very start. */
   restartKey?: number;
+  /** Seed the clock partway into a cycle (ms) — used to resume a paused session. */
+  initialElapsedMs?: number;
+  /** Seed the remaining-cycles counter (defaults to `totalCycles`) — for resume. */
+  initialCyclesLeft?: number;
   /** Fired once when the last cycle completes. */
   onComplete?: () => void;
 }
@@ -71,12 +75,15 @@ export function useBreathingAnimation({
   totalCycles = DEFAULT_TOTAL_CYCLES,
   running = true,
   restartKey = 0,
+  initialElapsedMs = 0,
+  initialCyclesLeft,
   onComplete,
 }: UseBreathingAnimationParams = {}): UseBreathingAnimationResult {
   const { inhaleMs, holdInMs, exhaleMs, holdOutMs } = config;
   const total = inhaleMs + holdInMs + exhaleMs + holdOutMs;
 
-  const clock = useSharedValue(0); // 0..1 position within the current cycle
+  // Seed the clock at the resume position (0 for a fresh start).
+  const clock = useSharedValue(total > 0 ? (initialElapsedMs % total) / total : 0);
   const cyclesElapsed = useSharedValue(0); // monotonic; deltas drive the counter
   const totalSV = useSharedValue(total); // read inside the frame worklet
   useEffect(() => {
@@ -84,7 +91,7 @@ export function useBreathingAnimation({
   }, [total, totalSV]);
 
   const [phaseIndex, setPhaseIndex] = useState(0);
-  const [cyclesLeft, setCyclesLeft] = useState(totalCycles);
+  const [cyclesLeft, setCyclesLeft] = useState(initialCyclesLeft ?? totalCycles);
 
   // Reset the counter when the target changes or the session is restarted —
   // during render (React's pattern), never touching the clock position here.
@@ -99,8 +106,14 @@ export function useBreathingAnimation({
     setCyclesLeft(totalCycles);
   }
 
-  // On restart, rewind the clock to the very start of the cycle.
+  // On restart, rewind the clock to the very start of the cycle. Skip the first
+  // run so the resume seed (initialElapsedMs) isn't wiped on mount.
+  const seededRef = useRef(false);
   useEffect(() => {
+    if (!seededRef.current) {
+      seededRef.current = true;
+      return;
+    }
     clock.value = 0;
   }, [clock, restartKey]);
 

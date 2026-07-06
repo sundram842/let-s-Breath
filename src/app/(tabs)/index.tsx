@@ -1,5 +1,5 @@
-import { BreathingScreen } from '@/features/breathing';
+import { HomeScreen } from '@/features/home';
 
-export default function HomeScreen() {
-  return <BreathingScreen />;
+export default function Home() {
+  return <HomeScreen />;
 }

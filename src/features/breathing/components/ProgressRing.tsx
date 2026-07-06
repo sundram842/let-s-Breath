@@ -2,7 +2,7 @@ import { StyleSheet } from 'react-native';
 import Animated, { useAnimatedProps, type SharedValue } from 'react-native-reanimated';
 import Svg, { Circle, Path } from 'react-native-svg';
 
-import { colors } from '@/theme';
+import { useBreathingColors } from '@/hooks/use-theme';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
@@ -22,6 +22,7 @@ export interface ProgressRingProps {
  * which runs on the UI thread (react-native-svg + Reanimated) for smooth 60fps.
  */
 export function ProgressRing({ size, strokeWidth, progress }: ProgressRingProps) {
+  const colors = useBreathingColors();
   const center = size / 2;
   const radius = (size - strokeWidth) / 2; // keep stroke fully inside the canvas
   const innerRadius = radius - strokeWidth / 2; // frosted disc fills up to the ring
@@ -40,11 +41,11 @@ export function ProgressRing({ size, strokeWidth, progress }: ProgressRingProps)
   return (
     <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
       {/* Semi-transparent inner disc — the soft frosted-glass effect. */}
-      <Circle cx={center} cy={center} r={innerRadius} fill={colors.breathing.innerFill} />
+      <Circle cx={center} cy={center} r={innerRadius} fill={colors.innerFill} />
 
       <AnimatedPath
         d={rightArc}
-        stroke={colors.breathing.ring}
+        stroke={colors.ring}
         strokeWidth={strokeWidth}
         strokeLinecap="round"
         fill="none"
@@ -53,7 +54,7 @@ export function ProgressRing({ size, strokeWidth, progress }: ProgressRingProps)
       />
       <AnimatedPath
         d={leftArc}
-        stroke={colors.breathing.ring}
+        stroke={colors.ring}
         strokeWidth={strokeWidth}
         strokeLinecap="round"
         fill="none"

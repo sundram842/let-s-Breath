@@ -1,4 +1,4 @@
-import { useEffect, useMemo, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, type RefObject } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import type { HapticIntensity } from '@/features/settings';
@@ -23,6 +23,10 @@ export interface BreathingCircleProps {
   hapticsEnabled?: boolean;
   /** Vibration strength. */
   hapticIntensity?: HapticIntensity;
+  /** Keep haptic guidance going while the app is backgrounded (Android). */
+  backgroundEnabled?: boolean;
+  /** Remaining session time (ms), or null if unbounded — bounds background haptics. */
+  sessionRemainingMs?: number | null;
   /** When false, freeze the animation in place (pause / session finished). */
   running?: boolean;
   /** Bump to reset the session to the very start. */
@@ -47,6 +51,8 @@ export function BreathingCircle({
   muted = false,
   hapticsEnabled = false,
   hapticIntensity = 'medium',
+  backgroundEnabled = false,
+  sessionRemainingMs = null,
   running = true,
   restartKey = 0,
   advanceRef,
@@ -62,13 +68,32 @@ export function BreathingCircle({
   );
   const strokeWidth = size * RING.strokeRatio;
 
-  const { progress, phaseIndex, phaseLabel, cyclesLeft, advanceBy } = useBreathingAnimation({
-    config: resolvedConfig,
-    totalCycles,
-    running,
-    restartKey,
-    onComplete,
-  });
+  const { progress, phaseIndex, phaseLabel, cyclesLeft, advanceBy, getCycleElapsedMs } =
+    useBreathingAnimation({
+      config: resolvedConfig,
+      totalCycles,
+      running,
+      restartKey,
+      onComplete,
+    });
+
+  // Time left in the session (ms), whichever bound is nearer: the remaining
+  // cycles or an explicit duration. Bounds how far ahead background haptics are
+  // scheduled so buzzing stops when the session would end while backgrounded.
+  const getSessionRemainingMs = useCallback((): number | null => {
+    const cycleMs =
+      resolvedConfig.inhaleMs +
+      resolvedConfig.holdInMs +
+      resolvedConfig.exhaleMs +
+      resolvedConfig.holdOutMs;
+    const byCycles = Number.isFinite(cyclesLeft)
+      ? Math.max(0, cyclesLeft * cycleMs - getCycleElapsedMs())
+      : null;
+    const bounds = [byCycles, sessionRemainingMs].filter(
+      (v): v is number => v != null,
+    );
+    return bounds.length ? Math.min(...bounds) : null;
+  }, [resolvedConfig, cyclesLeft, getCycleElapsedMs, sessionRemainingMs]);
 
   // Expose advanceBy to the parent screen (for background catch-up).
   useEffect(() => {
@@ -88,6 +113,9 @@ export function BreathingCircle({
     config: resolvedConfig,
     enabled: hapticsEnabled && running,
     intensity: hapticIntensity,
+    backgroundEnabled,
+    getCycleElapsedMs,
+    getSessionRemainingMs,
   });
 
   const title = titleOverride ?? phaseLabel;

@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Spacing } from '@/constants/theme';
 import { useBreathingSettings } from '@/features/settings';
-import { colors } from '@/theme';
+import { useBreathingColors } from '@/hooks/use-theme';
 import { BreathingCircle } from './components/BreathingCircle';
 import type { BreathingConfig } from './types';
 
@@ -31,6 +31,7 @@ function formatClock(ms: number): string {
 export function BreathingScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const colors = useBreathingColors();
   const { durations, hapticsEnabled, hapticIntensity, soundEnabled, session, backgroundEnabled } =
     useBreathingSettings();
 
@@ -152,7 +153,7 @@ export function BreathingScreen() {
 
   return (
     <LinearGradient
-      colors={[colors.breathing.gradientFrom, colors.breathing.gradientTo]}
+      colors={[colors.gradientFrom, colors.gradientTo]}
       start={{ x: 0.1, y: 0 }}
       end={{ x: 0.9, y: 1 }}
       style={styles.fill}
@@ -176,6 +177,8 @@ export function BreathingScreen() {
           muted={!soundEnabled}
           hapticsEnabled={hapticsEnabled}
           hapticIntensity={hapticIntensity}
+          backgroundEnabled={backgroundEnabled}
+          sessionRemainingMs={durationMs != null ? (remainingMs ?? durationMs) : null}
           titleOverride={titleOverride}
           subtitleOverride={subtitleOverride}
         />
@@ -188,15 +191,17 @@ export function BreathingScreen() {
           accessibilityLabel={running ? 'Pause session' : 'Resume session'}
           style={({ pressed }) => [
             styles.pauseButton,
-            { bottom: insets.bottom + Spacing.six, opacity: pressed ? 0.6 : 1 },
+            {
+              backgroundColor: colors.control,
+              bottom: insets.bottom + Spacing.six,
+              opacity: pressed ? 0.6 : 1,
+            },
           ]}
         >
-          <Ionicons
-            name={running ? 'pause' : 'play'}
-            size={22}
-            color={colors.breathing.title}
-          />
-          <Text style={styles.pauseLabel}>{running ? 'Pause' : 'Resume'}</Text>
+          <Ionicons name={running ? 'pause' : 'play'} size={22} color={colors.title} />
+          <Text style={[styles.pauseLabel, { color: colors.title }]}>
+            {running ? 'Pause' : 'Resume'}
+          </Text>
         </Pressable>
       )}
 
@@ -207,10 +212,14 @@ export function BreathingScreen() {
         accessibilityLabel="Open settings"
         style={({ pressed }) => [
           styles.settingsButton,
-          { top: insets.top + Spacing.two, opacity: pressed ? 0.5 : 1 },
+          {
+            backgroundColor: colors.control,
+            top: insets.top + Spacing.two,
+            opacity: pressed ? 0.5 : 1,
+          },
         ]}
       >
-        <Ionicons name="settings-outline" size={24} color={colors.breathing.title} />
+        <Ionicons name="settings-outline" size={24} color={colors.title} />
       </Pressable>
     </LinearGradient>
   );
@@ -234,10 +243,8 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.five,
     borderRadius: Spacing.five,
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
   },
   pauseLabel: {
-    color: colors.breathing.title,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -250,6 +257,5 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
   },
 });

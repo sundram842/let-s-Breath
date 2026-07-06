@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { colors, typography } from '@/theme';
+import { typography } from '@/theme';
+import { useBreathingColors } from '@/hooks/use-theme';
 import { RING } from '../constants';
 
 export interface CenterLabelProps {
@@ -18,11 +19,12 @@ export interface CenterLabelProps {
  * optical center; the subtitle sits lower, matching the design.
  */
 export function CenterLabel({ title, subtitle, size }: CenterLabelProps) {
+  const colors = useBreathingColors();
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <View style={styles.titleWrap}>
         <Text
-          style={[styles.title, { fontSize: size * RING.titleRatio }]}
+          style={[styles.title, { color: colors.title, fontSize: size * RING.titleRatio }]}
           numberOfLines={1}
           allowFontScaling={false}
         >
@@ -34,6 +36,7 @@ export function CenterLabel({ title, subtitle, size }: CenterLabelProps) {
         style={[
           styles.subtitle,
           {
+            color: colors.subtitle,
             fontSize: size * RING.subtitleRatio,
             bottom: size * RING.subtitleBottomRatio,
           },
@@ -58,7 +61,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   title: {
-    color: colors.breathing.title,
     fontWeight: typography.weights.medium,
     letterSpacing: typography.letterSpacing.wide,
     textAlign: 'center',
@@ -68,7 +70,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     textAlign: 'center',
-    color: colors.breathing.subtitle,
     fontWeight: typography.weights.regular,
     letterSpacing: typography.letterSpacing.wide,
   },

@@ -48,6 +48,8 @@ export interface UseBreathingAnimationResult {
   cyclesLeft: number;
   /** Fast-forward the session by `ms` (used to catch up after background). */
   advanceBy: (ms: number) => void;
+  /** Current position within the cycle (ms) — read when pre-scheduling haptics. */
+  getCycleElapsedMs: () => number;
 }
 
 /** Ease-in-out for a soft, relaxing acceleration. Runs on the UI thread. */
@@ -188,6 +190,9 @@ export function useBreathingAnimation({
     [clock, cyclesElapsed, total],
   );
 
+  // Snapshot the UI-thread clock on the JS thread (a plain shared-value read).
+  const getCycleElapsedMs = useCallback(() => clock.value * total, [clock, total]);
+
   const phase = PHASE_SEQUENCE[phaseIndex];
   return {
     progress,
@@ -196,5 +201,6 @@ export function useBreathingAnimation({
     phaseLabel: PHASE_LABELS[phase],
     cyclesLeft,
     advanceBy,
+    getCycleElapsedMs,
   };
 }

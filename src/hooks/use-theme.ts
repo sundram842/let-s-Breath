@@ -7,8 +7,20 @@
  */
 import { Colors } from '@/constants/theme';
 import { useBreathingSettings } from '@/features/settings/context/SettingsProvider';
+import { breathingColors, type BreathingColors } from '@/theme/colors';
 
 export function useTheme() {
   const { themePreference } = useBreathingSettings();
   return Colors[themePreference];
+}
+
+/**
+ * The breathing (Home) palette for the active Light/Dark preference. Kept
+ * separate from `useTheme()` because the breathing screen is a full-bleed
+ * gradient with its own tokens (ring, gradient, translucent controls) rather
+ * than the flat background/text tokens the rest of the app uses.
+ */
+export function useBreathingColors(): BreathingColors {
+  const { themePreference } = useBreathingSettings();
+  return breathingColors[themePreference];
 }

@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Spacing } from '@/constants/theme';
 import { useBreathingSettings } from '@/features/settings';
-import { useSession, type SessionSnapshot } from '@/features/session';
+import { SessionKeepAlive, useSession, type SessionSnapshot } from '@/features/session';
 import { useBreathingColors } from '@/hooks/use-theme';
 import { BreathingCircle } from './components/BreathingCircle';
 import type { BreathingConfig } from './types';
@@ -167,6 +167,15 @@ export function BreathingScreen() {
       if (pendingSnapshotRef.current) saveRef.current(pendingSnapshotRef.current);
     };
   }, []);
+
+  // Keep the CPU awake (Android foreground service) while a background-enabled
+  // session is on screen, so haptics + audio survive the screen being turned off.
+  // Started here while foreground — Android 12+ forbids a background FGS start.
+  useEffect(() => {
+    if (!backgroundEnabled) return;
+    SessionKeepAlive.start();
+    return () => SessionKeepAlive.stop();
+  }, [backgroundEnabled]);
 
   // Background handling.
   useEffect(() => {

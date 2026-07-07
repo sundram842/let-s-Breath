@@ -3,6 +3,7 @@ import { Platform, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { Spacing } from '@/constants/theme';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { SessionKeepAlive } from '@/features/session';
 import { useTheme } from '@/hooks/use-theme';
 import { HOLD_DURATION_MIN, THEME_OPTIONS } from './constants';
 import { DurationSlider } from './components/DurationSlider';
@@ -124,7 +125,11 @@ export function SettingsScreen() {
             </View>
             <Switch
               value={backgroundEnabled}
-              onValueChange={setBackgroundEnabled}
+              onValueChange={(next) => {
+                setBackgroundEnabled(next);
+                // Ask for background permissions only when the user turns this on.
+                if (next) void SessionKeepAlive.ensureBackgroundPermissions();
+              }}
               trackColor={{ true: theme.text, false: theme.backgroundSelected }}
               thumbColor={Platform.OS === 'android' ? theme.background : undefined}
               accessibilityLabel="Continue practice in background"

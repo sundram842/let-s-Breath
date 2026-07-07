@@ -1,17 +1,22 @@
 import { useEffect, useRef } from 'react';
 import Sound from 'react-native-sound';
 
-// Play cues through the Playback category so they're audible even on silent (iOS).
+// Play cues through the Playback category so they're audible even on silent (iOS)
+// and keep playing while the app is backgrounded.
 Sound.setCategory('Playback', true);
 
-// Static requires so Metro bundles the assets.
-const SOURCES = {
-  inhale: require('@/assets/sounds/inhale.mp3'),
-  hold: require('@/assets/sounds/hold.mp3'),
-  exhale: require('@/assets/sounds/exhale.mp3'),
-} as const;
-
 type CueKey = 'inhale' | 'hold' | 'exhale';
+
+/**
+ * Filenames of the cue clips bundled as *native* resources — reliable on device
+ * and in release builds (unlike require()'d assets served over Metro in debug).
+ * Android: android/app/src/main/res/raw/. iOS: added to the app target's bundle.
+ */
+const SOURCES: Record<CueKey, string> = {
+  inhale: 'inhale.mp3',
+  hold: 'hold.mp3',
+  exhale: 'exhale.mp3',
+};
 
 /**
  * Plays the matching voice cue once at the start of each phase. Driven by
@@ -26,7 +31,8 @@ export function useBreathingSound(phaseIndex: number, enabled = true) {
   useEffect(() => {
     const players: Partial<Record<CueKey, Sound>> = {};
     (Object.keys(SOURCES) as CueKey[]).forEach((key) => {
-      players[key] = new Sound(SOURCES[key], () => {});
+      // MAIN_BUNDLE → load from the native app bundle (res/raw on Android).
+      players[key] = new Sound(SOURCES[key], Sound.MAIN_BUNDLE, () => {});
     });
     playersRef.current = players;
     return () => {

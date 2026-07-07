@@ -6,6 +6,12 @@
     <!-- Background breathing session with audio + vibration -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- Keep the CPU awake so haptics/audio survive the screen turning off -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Ask (only when the user opts into background) to skip battery optimization -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Show the foreground-service notification on Android 13+ -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
       android:name=".MainApplication"
@@ -35,5 +41,11 @@
             <data android:scheme="letbreath" />
         </intent-filter>
       </activity>
+
+      <!-- Keeps a backgrounded breathing session running with the screen off. -->
+      <service
+        android:name=".SessionForegroundService"
+        android:exported="false"
+        android:foregroundServiceType="mediaPlayback" />
     </application>
 </manifest>

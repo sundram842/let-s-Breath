@@ -5,3 +5,4 @@ export {
   type SessionStatus,
   type SessionSnapshot,
 } from './SessionProvider';
+export { SessionKeepAlive } from './keepAwake';

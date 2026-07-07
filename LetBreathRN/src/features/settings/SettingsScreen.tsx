@@ -177,7 +177,12 @@ export function SettingsScreen() {
             </View>
             <Switch
               value={hapticsEnabled}
-              onValueChange={setHapticsEnabled}
+              onValueChange={(next) => {
+                setHapticsEnabled(next);
+                // When turning haptics on, guide the user through the Android
+                // settings needed for vibration to survive the screen turning off.
+                if (next) void SessionKeepAlive.promptBackgroundHaptics();
+              }}
               trackColor={{ true: theme.text, false: theme.backgroundSelected }}
               thumbColor={Platform.OS === 'android' ? theme.background : undefined}
               accessibilityLabel="Haptic breathing guidance"

@@ -50,10 +50,35 @@ export interface UseBreathingAnimationResult {
   phaseLabel: string;
   /** Remaining cycles, counts down to 0. */
   cyclesLeft: number;
+  /** Whole seconds remaining in the *current* phase, counts down to 0. */
+  phaseSecondsLeft: number;
   /** Fast-forward the session by `ms` (used to catch up after background). */
   advanceBy: (ms: number) => void;
   /** Current position within the cycle (ms) — read when pre-scheduling haptics. */
   getCycleElapsedMs: () => number;
+}
+
+/**
+ * Whole seconds left in the phase occupied at `elapsedMs` into the cycle. Plain
+ * JS twin of the on-thread derived value below — used to seed the initial value
+ * without a frame having run yet (so a resumed/paused session shows the right
+ * number immediately).
+ */
+function phaseSecondsLeftAt(
+  elapsedMs: number,
+  total: number,
+  inhaleMs: number,
+  holdInMs: number,
+  exhaleMs: number,
+): number {
+  if (total <= 0) return 0;
+  const t = ((elapsedMs % total) + total) % total;
+  let boundary: number;
+  if (t < inhaleMs) boundary = inhaleMs;
+  else if (t < inhaleMs + holdInMs) boundary = inhaleMs + holdInMs;
+  else if (t < inhaleMs + holdInMs + exhaleMs) boundary = inhaleMs + holdInMs + exhaleMs;
+  else boundary = total;
+  return Math.max(0, Math.ceil((boundary - t) / 1000));
 }
 
 /** Ease-in-out for a soft, relaxing acceleration. Runs on the UI thread. */
@@ -169,6 +194,34 @@ export function useBreathingAnimation({
     [],
   );
 
+  // Whole seconds left in the current phase, for the in-circle countdown. Derived
+  // on the UI thread from the same clock, then mirrored to React only when the
+  // displayed integer changes (so we re-render at most once a second, in sync
+  // with the ring rather than on a separate timer).
+  const [phaseSecondsLeft, setPhaseSecondsLeft] = useState(() =>
+    phaseSecondsLeftAt(initialElapsedMs, total, inhaleMs, holdInMs, exhaleMs),
+  );
+  const phaseSecondsLeftSV = useDerivedValue(() => {
+    if (total <= 0) return 0;
+    const t = clock.value * total;
+    let boundary: number;
+    if (t < inhaleMs) boundary = inhaleMs;
+    else if (t < inhaleMs + holdInMs) boundary = inhaleMs + holdInMs;
+    else if (t < inhaleMs + holdInMs + exhaleMs) boundary = inhaleMs + holdInMs + exhaleMs;
+    else boundary = total;
+    return Math.max(0, Math.ceil((boundary - t) / 1000));
+  }, [inhaleMs, holdInMs, exhaleMs, total]);
+
+  useAnimatedReaction(
+    () => phaseSecondsLeftSV.value,
+    (curr, prev) => {
+      if (prev === null || curr !== prev) {
+        runOnJS(setPhaseSecondsLeft)(curr);
+      }
+    },
+    [],
+  );
+
   const handleCyclesElapsed = useCallback(
     (delta: number) => {
       setCyclesLeft((n) => {
@@ -213,6 +266,7 @@ export function useBreathingAnimation({
     phaseIndex,
     phaseLabel: PHASE_LABELS[phase],
     cyclesLeft,
+    phaseSecondsLeft,
     advanceBy,
     getCycleElapsedMs,
   };

@@ -22,6 +22,8 @@ export const RING = {
   strokeRatio: 0.035,
   /** "Inhale" font size relative to circle size. */
   titleRatio: 0.13,
+  /** Big in-circle phase countdown ("4") font size relative to circle size. */
+  countdownRatio: 0.26,
   /** "N cycles left" font size relative to circle size. */
   subtitleRatio: 0.045,
   /** Subtitle distance from the circle's bottom, relative to size. */

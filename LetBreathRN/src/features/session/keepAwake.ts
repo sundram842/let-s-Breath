@@ -1,4 +1,4 @@
-import { NativeModules, PermissionsAndroid, Platform } from 'react-native';
+import { Alert, NativeModules, PermissionsAndroid, Platform } from 'react-native';
 
 type SessionServiceModule = {
   start: () => void;
@@ -46,5 +46,49 @@ export const SessionKeepAlive = {
     } catch {
       // ignore — feature still works where the OS is lenient
     }
+  },
+
+  /**
+   * Called when the user turns on Haptic Guidance. Explains — in plain terms —
+   * why Android needs a battery-optimization exemption for vibrations to keep
+   * working with the screen off, then, if the user agrees, requests exactly those
+   * permissions. Stays silent if the app is already exempt (nothing to ask for)
+   * so we never nag. No-op on iOS.
+   */
+  async promptBackgroundHaptics() {
+    if (Platform.OS !== 'android') return;
+
+    let exempt = true;
+    try {
+      exempt = (await SessionService?.isIgnoringBatteryOptimizations()) ?? true;
+    } catch {
+      exempt = true;
+    }
+
+    // Already exempt: just make sure the notification permission is in place for
+    // the foreground-service notice, without popping an explanatory dialog.
+    if (exempt) {
+      void this.ensureBackgroundPermissions();
+      return;
+    }
+
+    Alert.alert(
+      'Keep haptics working with the screen off',
+      'For the vibration guidance to stay in sync when your screen is off or the ' +
+        'phone is in your pocket, Android needs to exclude this app from battery ' +
+        'optimisation. Otherwise the system may pause vibrations once the display ' +
+        'turns off.\n\n' +
+        'On some phones (e.g. Xiaomi / Redmi), also turn on “Autostart” for this ' +
+        'app in Settings.',
+      [
+        { text: 'Not now', style: 'cancel' },
+        {
+          text: 'Allow',
+          onPress: () => {
+            void SessionKeepAlive.ensureBackgroundPermissions();
+          },
+        },
+      ],
+    );
   },
 };

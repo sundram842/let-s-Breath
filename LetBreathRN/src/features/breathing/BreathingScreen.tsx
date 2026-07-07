@@ -1,6 +1,6 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Pressable, StatusBar, StyleSheet, Text } from 'react-native';
+import { Alert, AppState, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,6 +20,28 @@ function formatClock(ms: number): string {
   const m = Math.floor(total / 60);
   const s = total % 60;
   return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+type Durations = ReturnType<typeof useBreathingSettings>['durations'];
+
+/** The frozen breathing rhythm derived from the live Settings durations. */
+function configFromDurations(d: Durations): BreathingConfig {
+  return {
+    inhaleMs: d.inhaleSec * 1000,
+    holdInMs: d.holdSec * 1000,
+    exhaleMs: d.exhaleSec * 1000,
+    holdOutMs: d.holdOutSec * 1000,
+  };
+}
+
+/** Whether two rhythms describe the same breathing pattern. */
+function configsEqual(a: BreathingConfig, b: BreathingConfig): boolean {
+  return (
+    a.inhaleMs === b.inhaleMs &&
+    a.holdInMs === b.holdInMs &&
+    a.exhaleMs === b.exhaleMs &&
+    a.holdOutMs === b.holdOutMs
+  );
 }
 
 /**
@@ -44,15 +66,10 @@ export function BreathingScreen() {
 
   // Freeze the rhythm + session targets for the lifetime of this screen so a
   // resume is faithful and any Settings edits don't disrupt an active breath.
-  const [config] = useState<BreathingConfig>(() =>
-    resume
-      ? resume.config
-      : {
-          inhaleMs: durations.inhaleSec * 1000,
-          holdInMs: durations.holdSec * 1000,
-          exhaleMs: durations.exhaleSec * 1000,
-          holdOutMs: durations.holdOutSec * 1000,
-        },
+  // `config` only changes when the user explicitly confirms applying new
+  // breathing settings (see the settings-changed prompt below).
+  const [config, setConfig] = useState<BreathingConfig>(() =>
+    resume ? resume.config : configFromDurations(durations),
   );
   const [totalCycles] = useState<number>(() =>
     resume
@@ -202,10 +219,56 @@ export function BreathingScreen() {
     () => setStatus((s) => (s === 'running' ? 'paused' : s === 'paused' ? 'running' : s)),
     [],
   );
-  const restart = useCallback(() => {
-    setRestartKey((k) => k + 1);
-    setStatus('running');
-  }, []);
+  // Restart from the very first breath: bumps restartKey (rewinds the clock,
+  // resets cycles + the duration countdown) and resumes running. Voice and
+  // haptic guidance re-fire as the phase returns to Inhale.
+  const restart = useCallback(
+    (nextConfig?: BreathingConfig) => {
+      if (nextConfig) setConfig(nextConfig);
+      setRestartKey((k) => k + 1);
+      setStatus('running');
+    },
+    [],
+  );
+
+  // Restart button: confirm first if a session is still in progress, since it
+  // discards the current progress.
+  const confirmRestart = useCallback(() => {
+    if (statusRef.current === 'complete') {
+      restart();
+      return;
+    }
+    Alert.alert(
+      'Restart session?',
+      'This restarts from the first breath and resets your progress, timers and cycles.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Restart', style: 'destructive', onPress: () => restart() },
+      ],
+    );
+  }, [restart]);
+
+  // If the user changed the breathing durations / practice in Settings, the
+  // active session is still running the old rhythm. Offer — once per visit —
+  // to restart with the new pattern. Runs when the screen (re)gains focus.
+  const settingsPromptShownRef = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (settingsPromptShownRef.current) return;
+      if (statusRef.current === 'complete') return;
+      const live = configFromDurations(durations);
+      if (configsEqual(live, config)) return;
+      settingsPromptShownRef.current = true;
+      Alert.alert(
+        'Breathing settings changed',
+        'Your breathing settings have changed. Restart the current session to apply the new breathing pattern?',
+        [
+          { text: 'Keep current', style: 'cancel' },
+          { text: 'Restart', onPress: () => restart(live) },
+        ],
+      );
+    }, [durations, config, restart]),
+  );
 
   // Center label.
   let titleOverride: string | undefined;
@@ -234,7 +297,7 @@ export function BreathingScreen() {
 
       <Pressable
         style={styles.center}
-        onPress={complete ? restart : undefined}
+        onPress={complete ? () => restart() : undefined}
         disabled={!complete}
         accessibilityRole={complete ? 'button' : undefined}
         accessibilityLabel={complete ? 'Start a new session' : undefined}
@@ -256,29 +319,40 @@ export function BreathingScreen() {
           sessionRemainingMs={durationMs != null ? (remainingMs ?? durationMs) : null}
           titleOverride={titleOverride}
           subtitleOverride={subtitleOverride}
+          showCountdown={!complete}
         />
       </Pressable>
 
-      {!complete && (
+      <View style={[styles.controls, { bottom: insets.bottom + Spacing.six }]}>
         <Pressable
-          onPress={togglePause}
+          onPress={confirmRestart}
           accessibilityRole="button"
-          accessibilityLabel={running ? 'Pause session' : 'Resume session'}
+          accessibilityLabel="Restart session"
           style={({ pressed }) => [
-            styles.pauseButton,
-            {
-              backgroundColor: colors.control,
-              bottom: insets.bottom + Spacing.six,
-              opacity: pressed ? 0.6 : 1,
-            },
+            styles.iconButton,
+            { backgroundColor: colors.control, opacity: pressed ? 0.6 : 1 },
           ]}
         >
-          <Ionicons name={running ? 'pause' : 'play'} size={22} color={colors.title} />
-          <Text style={[styles.pauseLabel, { color: colors.title }]}>
-            {running ? 'Pause' : 'Resume'}
-          </Text>
+          <Ionicons name="refresh" size={22} color={colors.title} />
         </Pressable>
-      )}
+
+        {!complete && (
+          <Pressable
+            onPress={togglePause}
+            accessibilityRole="button"
+            accessibilityLabel={running ? 'Pause session' : 'Resume session'}
+            style={({ pressed }) => [
+              styles.pauseButton,
+              { backgroundColor: colors.control, opacity: pressed ? 0.6 : 1 },
+            ]}
+          >
+            <Ionicons name={running ? 'pause' : 'play'} size={22} color={colors.title} />
+            <Text style={[styles.pauseLabel, { color: colors.title }]}>
+              {running ? 'Pause' : 'Resume'}
+            </Text>
+          </Pressable>
+        )}
+      </View>
 
       <Pressable
         onPress={() => navigation.goBack()}
@@ -309,9 +383,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pauseButton: {
+  controls: {
     position: 'absolute',
-    alignSelf: 'center',
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.three,
+  },
+  iconButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pauseButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,

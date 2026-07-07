@@ -43,6 +43,9 @@ export interface BreathingCircleProps {
   titleOverride?: string;
   /** Replace the "N cycles left" line (e.g. a time countdown or "∞"). */
   subtitleOverride?: string;
+  /** Show the per-phase seconds countdown inside the circle (hidden when the
+   * session is complete). */
+  showCountdown?: boolean;
 }
 
 /**
@@ -67,6 +70,7 @@ export function BreathingCircle({
   snapshotRef,
   titleOverride,
   subtitleOverride,
+  showCountdown = true,
 }: BreathingCircleProps) {
   const { width, height } = useWindowDimensions();
   const resolvedConfig = config ?? BREATHING_CONFIG;
@@ -77,8 +81,15 @@ export function BreathingCircle({
   );
   const strokeWidth = size * RING.strokeRatio;
 
-  const { progress, phaseIndex, phaseLabel, cyclesLeft, advanceBy, getCycleElapsedMs } =
-    useBreathingAnimation({
+  const {
+    progress,
+    phaseIndex,
+    phaseLabel,
+    cyclesLeft,
+    phaseSecondsLeft,
+    advanceBy,
+    getCycleElapsedMs,
+  } = useBreathingAnimation({
       config: resolvedConfig,
       totalCycles,
       running,
@@ -145,7 +156,12 @@ export function BreathingCircle({
   return (
     <View style={[styles.container, { width: size, height: size }]}>
       <ProgressRing size={size} strokeWidth={strokeWidth} progress={progress} />
-      <CenterLabel title={title} subtitle={subtitle} size={size} />
+      <CenterLabel
+        title={title}
+        subtitle={subtitle}
+        countdown={showCountdown ? phaseSecondsLeft : null}
+        size={size}
+      />
     </View>
   );
 }

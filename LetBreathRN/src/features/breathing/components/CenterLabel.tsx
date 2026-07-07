@@ -9,16 +9,20 @@ export interface CenterLabelProps {
   title: string;
   /** Small secondary text, e.g. "10 cycles left". */
   subtitle: string;
+  /** Seconds remaining in the current phase — the big number under the title.
+   * Pass null to hide it (e.g. when the session is complete). */
+  countdown?: number | null;
   /** Circle size — font sizes scale from it for responsiveness. */
   size: number;
 }
 
 /**
  * Text overlay centered inside the ring. Rendered with plain RN <Text>
- * (crisper than canvas text and no font asset to load). The title sits at the
- * optical center; the subtitle sits lower, matching the design.
+ * (crisper than canvas text and no font asset to load). The phase label + phase
+ * countdown sit at the optical center; the subtitle sits lower, matching the
+ * design.
  */
-export function CenterLabel({ title, subtitle, size }: CenterLabelProps) {
+export function CenterLabel({ title, subtitle, countdown, size }: CenterLabelProps) {
   const colors = useBreathingColors();
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -30,6 +34,18 @@ export function CenterLabel({ title, subtitle, size }: CenterLabelProps) {
         >
           {title}
         </Text>
+        {countdown != null && (
+          <Text
+            style={[
+              styles.countdown,
+              { color: colors.title, fontSize: size * RING.countdownRatio },
+            ]}
+            numberOfLines={1}
+            allowFontScaling={false}
+          >
+            {countdown}
+          </Text>
+        )}
       </View>
 
       <Text
@@ -64,6 +80,12 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.medium,
     letterSpacing: typography.letterSpacing.wide,
     textAlign: 'center',
+  },
+  countdown: {
+    fontWeight: typography.weights.medium,
+    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
+    includeFontPadding: false,
   },
   subtitle: {
     position: 'absolute',

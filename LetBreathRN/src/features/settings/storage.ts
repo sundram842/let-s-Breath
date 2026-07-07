@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
   DEFAULT_BACKGROUND_ENABLED,
+  DEFAULT_CUSTOM_PRACTICES,
   DEFAULT_DURATIONS,
   DEFAULT_HAPTIC_INTENSITY,
   DEFAULT_HAPTICS_ENABLED,
@@ -15,7 +16,14 @@ import {
   SESSION_LIMITS,
   SETTINGS_STORAGE_KEY,
 } from './constants';
-import type { BreathingPractice, HapticIntensity, PersistedSettings } from './types';
+import { isCustomPracticeId } from './utils/practices';
+import type {
+  BreathingPractice,
+  CustomPractice,
+  HapticIntensity,
+  PersistedSettings,
+  PracticeId,
+} from './types';
 
 function makeDefaults(): PersistedSettings {
   return {
@@ -27,11 +35,47 @@ function makeDefaults(): PersistedSettings {
     themePreference: defaultThemePreference(),
     backgroundEnabled: DEFAULT_BACKGROUND_ENABLED,
     practice: DEFAULT_PRACTICE,
+    customPractices: DEFAULT_CUSTOM_PRACTICES,
   };
 }
 
 const INTENSITIES: HapticIntensity[] = ['gentle', 'medium', 'strong'];
-const PRACTICES = PRACTICE_OPTIONS.map((o) => o.value);
+const BUILT_IN_PRACTICES = PRACTICE_OPTIONS.map((o) => o.value);
+
+/** Parse a stored custom-practice array, dropping any malformed entries. */
+function normalizeCustomPractices(raw: unknown): CustomPractice[] {
+  if (!Array.isArray(raw)) return [];
+  const out: CustomPractice[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null) continue;
+    const r = item as Record<string, unknown>;
+    if (typeof r.id !== 'string' || typeof r.name !== 'string') continue;
+    const d = (typeof r.durations === 'object' && r.durations !== null
+      ? r.durations
+      : {}) as Record<string, unknown>;
+    out.push({
+      id: r.id,
+      name: r.name,
+      durations: {
+        inhaleSec: clampDuration(num(d.inhaleSec, DEFAULT_DURATIONS.inhaleSec), DURATION_LIMITS.min),
+        holdSec: clampDuration(num(d.holdSec, DEFAULT_DURATIONS.holdSec), HOLD_DURATION_MIN),
+        exhaleSec: clampDuration(num(d.exhaleSec, DEFAULT_DURATIONS.exhaleSec), DURATION_LIMITS.min),
+        holdOutSec: clampDuration(num(d.holdOutSec, DEFAULT_DURATIONS.holdOutSec), HOLD_DURATION_MIN),
+      },
+    });
+  }
+  return out;
+}
+
+/** Resolve a stored selection to a valid one: a built-in key, or a custom id
+ * that still exists. Falls back to the default practice otherwise. */
+function normalizePractice(raw: unknown, customPractices: CustomPractice[]): PracticeId {
+  if (BUILT_IN_PRACTICES.includes(raw as BreathingPractice)) return raw as BreathingPractice;
+  if (isCustomPracticeId(raw) && customPractices.some((p) => p.id === raw)) {
+    return raw as string;
+  }
+  return DEFAULT_PRACTICE;
+}
 
 /** Clamp a duration (seconds) into [min, max]. Holds allow 0, inhale/exhale ≥ 1. */
 function clampDuration(value: number, min: number): number {
@@ -64,12 +108,13 @@ function normalize(raw: unknown): PersistedSettings | null {
   const base = ['inhaleSec', 'holdSec', 'exhaleSec'] as const;
   if (!base.every((k) => typeof r[k] === 'number')) return null;
 
+  const customPractices = normalizeCustomPractices(r.customPractices);
+
   return {
     themePreference: r.themePreference === 'dark' ? 'dark' : r.themePreference === 'light' ? 'light' : defaultThemePreference(),
     backgroundEnabled: bool(r.backgroundEnabled, DEFAULT_BACKGROUND_ENABLED),
-    practice: PRACTICES.includes(r.practice as BreathingPractice)
-      ? (r.practice as BreathingPractice)
-      : DEFAULT_PRACTICE,
+    practice: normalizePractice(r.practice, customPractices),
+    customPractices,
     durations: {
       inhaleSec: clampDuration(r.inhaleSec as number, DURATION_LIMITS.min),
       holdSec: clampDuration(r.holdSec as number, HOLD_DURATION_MIN),
@@ -116,6 +161,7 @@ function serialize(s: PersistedSettings): string {
     themePreference: s.themePreference,
     backgroundEnabled: s.backgroundEnabled,
     practice: s.practice,
+    customPractices: s.customPractices,
   });
 }
 

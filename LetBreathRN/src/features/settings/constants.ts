@@ -3,6 +3,7 @@ import { Appearance } from 'react-native';
 import type {
   BreathingDurations,
   BreathingPractice,
+  CustomPractice,
   HapticIntensity,
   SessionConfig,
   ThemePreference,
@@ -75,6 +76,9 @@ export const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
 /** Default practice: fully manual. */
 export const DEFAULT_PRACTICE: BreathingPractice = 'custom';
 
+/** No user-created practices until the user adds one. */
+export const DEFAULT_CUSTOM_PRACTICES: CustomPractice[] = [];
+
 /**
  * Durations (seconds) for each preset. Physiological Sigh's 3s+1s double inhale
  * is approximated as a single 4s inhale; Alternate Nostril is approximated by
@@ -91,18 +95,18 @@ export const PRESET_DURATIONS: Record<
   mindful: { inhaleSec: 4, holdSec: 2, exhaleSec: 4, holdOutSec: 2 },
 };
 
-/** Dropdown entries, in display order. */
+/** Built-in dropdown entries, in display order (manual "Custom" comes last). */
 export const PRACTICE_OPTIONS: {
   value: BreathingPractice;
   label: string;
   technique: string;
 }[] = [
-  { value: 'custom', label: 'Custom', technique: 'Your own timings' },
   { value: 'quickCalm', label: 'Quick Calm', technique: 'Physiological Sigh' },
   { value: 'dailyBalance', label: 'Daily Balance', technique: 'Resonance Breathing' },
   { value: 'focusMode', label: 'Focus Mode', technique: 'Box Breathing' },
   { value: 'sleepPrep', label: 'Sleep Preparation', technique: '4-7-8 Breathing' },
   { value: 'mindful', label: 'Mindful Meditation', technique: 'Alternate Nostril' },
+  { value: 'custom', label: 'Custom', technique: 'Your own timings' },
 ];
 
 /** AsyncStorage key. Versioned so the shape can evolve safely later. */

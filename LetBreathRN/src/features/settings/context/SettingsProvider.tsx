@@ -9,6 +9,7 @@ import {
 
 import {
   DEFAULT_BACKGROUND_ENABLED,
+  DEFAULT_CUSTOM_PRACTICES,
   DEFAULT_DURATIONS,
   DEFAULT_HAPTIC_INTENSITY,
   DEFAULT_HAPTICS_ENABLED,
@@ -16,17 +17,30 @@ import {
   DEFAULT_SESSION,
   DEFAULT_SOUND_ENABLED,
   defaultThemePreference,
-  PRESET_DURATIONS,
 } from '../constants';
 import { loadSettings, saveSettings } from '../storage';
+import {
+  makeCustomPracticeId,
+  practiceDurations,
+  uniqueCopyName,
+  validateCustomPractice,
+} from '../utils/practices';
 import type {
   BreathingDurations,
-  BreathingPractice,
+  CustomPractice,
   DurationKey,
   HapticIntensity,
+  PracticeId,
   SessionConfig,
   ThemePreference,
 } from '../types';
+
+/** Outcome of an add/edit — `ok` false carries a message for the form. */
+export interface PracticeMutationResult {
+  ok: boolean;
+  error?: string;
+  id?: string;
+}
 
 interface SettingsContextValue {
   durations: BreathingDurations;
@@ -36,8 +50,10 @@ interface SettingsContextValue {
   session: SessionConfig;
   themePreference: ThemePreference;
   backgroundEnabled: boolean;
-  /** Selected breathing practice preset ("custom" = user-configured). */
-  practice: BreathingPractice;
+  /** Selected practice — a built-in key or a custom practice id. */
+  practice: PracticeId;
+  /** User-created practices, in display order. */
+  customPractices: CustomPractice[];
   /** True once AsyncStorage has been read at least once. */
   loaded: boolean;
   /** Edit a duration manually — this also switches the practice to Custom. */
@@ -49,8 +65,20 @@ interface SettingsContextValue {
   setSession: (partial: Partial<SessionConfig>) => void;
   setThemePreference: (value: ThemePreference) => void;
   setBackgroundEnabled: (value: boolean) => void;
-  /** Select a practice — applies its preset durations (Custom keeps current). */
-  setPractice: (value: BreathingPractice) => void;
+  /** Select a practice — applies its durations (manual "custom" keeps current). */
+  setPractice: (value: PracticeId) => void;
+  /** Create a custom practice; validated (name required + unique, valid ranges). */
+  addCustomPractice: (name: string, durations: BreathingDurations) => PracticeMutationResult;
+  /** Edit a custom practice; re-validated. Applies live if it's the active one. */
+  updateCustomPractice: (
+    id: string,
+    name: string,
+    durations: BreathingDurations,
+  ) => PracticeMutationResult;
+  /** Remove a custom practice; falls back to manual Custom if it was selected. */
+  deleteCustomPractice: (id: string) => void;
+  /** Copy a custom practice under a unique "… Copy" name. */
+  duplicateCustomPractice: (id: string) => void;
   resetDurations: () => void;
 }
 
@@ -73,7 +101,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     defaultThemePreference,
   );
   const [backgroundEnabled, setBackgroundEnabled] = useState(DEFAULT_BACKGROUND_ENABLED);
-  const [practice, setPracticeState] = useState<BreathingPractice>(DEFAULT_PRACTICE);
+  const [practice, setPracticeState] = useState<PracticeId>(DEFAULT_PRACTICE);
+  const [customPractices, setCustomPractices] =
+    useState<CustomPractice[]>(DEFAULT_CUSTOM_PRACTICES);
   const [loaded, setLoaded] = useState(false);
 
   // Load persisted values once on startup.
@@ -89,6 +119,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setThemePreference(stored.themePreference);
       setBackgroundEnabled(stored.backgroundEnabled);
       setPracticeState(stored.practice);
+      setCustomPractices(stored.customPractices);
       setLoaded(true);
     });
     return () => {
@@ -110,6 +141,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         themePreference,
         backgroundEnabled,
         practice,
+        customPractices,
       });
     }, 300);
     return () => clearTimeout(timeout);
@@ -122,6 +154,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     themePreference,
     backgroundEnabled,
     practice,
+    customPractices,
     loaded,
   ]);
 
@@ -135,6 +168,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       themePreference,
       backgroundEnabled,
       practice,
+      customPractices,
       loaded,
       setDuration: (key, val) => {
         // A manual timer edit means the config is no longer a preset.
@@ -149,8 +183,52 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setBackgroundEnabled,
       setPractice: (value) => {
         setPracticeState(value);
-        // Selecting a preset applies its durations; Custom keeps the current ones.
-        if (value !== 'custom') setDurations(PRESET_DURATIONS[value]);
+        // Applying a built-in preset or a custom practice sets its durations;
+        // the manual "custom" preset keeps the current ones (returns null).
+        const next = practiceDurations(value, customPractices);
+        if (next) setDurations(next);
+      },
+      addCustomPractice: (name, draftDurations) => {
+        const error = validateCustomPractice(name, draftDurations, customPractices);
+        if (error) return { ok: false, error };
+        const id = makeCustomPracticeId();
+        setCustomPractices((prev) => [
+          ...prev,
+          { id, name: name.trim(), durations: draftDurations },
+        ]);
+        return { ok: true, id };
+      },
+      updateCustomPractice: (id, name, draftDurations) => {
+        const error = validateCustomPractice(name, draftDurations, customPractices, id);
+        if (error) return { ok: false, error };
+        setCustomPractices((prev) =>
+          prev.map((p) =>
+            p.id === id ? { ...p, name: name.trim(), durations: draftDurations } : p,
+          ),
+        );
+        // Keep the live rhythm in step if the edited practice is the active one.
+        if (practice === id) setDurations(draftDurations);
+        return { ok: true };
+      },
+      deleteCustomPractice: (id) => {
+        setCustomPractices((prev) => prev.filter((p) => p.id !== id));
+        // If the deleted practice was active, fall back to the manual Custom
+        // preset — the current durations stay, so nothing jumps underfoot.
+        if (practice === id) setPracticeState('custom');
+      },
+      duplicateCustomPractice: (id) => {
+        setCustomPractices((prev) => {
+          const src = prev.find((p) => p.id === id);
+          if (!src) return prev;
+          return [
+            ...prev,
+            {
+              id: makeCustomPracticeId(),
+              name: uniqueCopyName(src.name, prev),
+              durations: src.durations,
+            },
+          ];
+        });
       },
       resetDurations: () => setDurations(DEFAULT_DURATIONS),
     }),
@@ -163,6 +241,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       themePreference,
       backgroundEnabled,
       practice,
+      customPractices,
       loaded,
     ],
   );

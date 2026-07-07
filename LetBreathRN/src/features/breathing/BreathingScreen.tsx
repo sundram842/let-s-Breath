@@ -6,7 +6,13 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Spacing } from '@/constants/theme';
-import { useBreathingSettings } from '@/features/settings';
+import {
+  PracticeSelectModal,
+  practiceDurations,
+  practiceMeta,
+  useBreathingSettings,
+  type PracticeId,
+} from '@/features/settings';
 import { SessionKeepAlive, useSession, type SessionSnapshot } from '@/features/session';
 import { useBreathingColors } from '@/hooks/use-theme';
 import { BreathingCircle } from './components/BreathingCircle';
@@ -56,8 +62,17 @@ export function BreathingScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const colors = useBreathingColors();
-  const { durations, hapticsEnabled, hapticIntensity, soundEnabled, session, backgroundEnabled } =
-    useBreathingSettings();
+  const {
+    durations,
+    hapticsEnabled,
+    hapticIntensity,
+    soundEnabled,
+    session,
+    backgroundEnabled,
+    practice,
+    customPractices,
+    setPractice,
+  } = useBreathingSettings();
   const { snapshot, status: sessionStatus, savePaused, complete: completeSession } = useSession();
 
   // Capture the resume snapshot (if any) once, at mount. A fresh start clears it
@@ -270,6 +285,42 @@ export function BreathingScreen() {
     }, [durations, config, restart]),
   );
 
+  // Change the breathing practice mid-session. Applying a different rhythm
+  // requires restarting, so confirm first when a session is in progress.
+  const [practicePickerOpen, setPracticePickerOpen] = useState(false);
+  const applyPractice = useCallback(
+    (id: PracticeId, nextConfig: BreathingConfig) => {
+      setPractice(id);
+      restart(nextConfig);
+    },
+    [setPractice, restart],
+  );
+  const handlePracticeSelect = useCallback(
+    (id: PracticeId) => {
+      const nextDurations = practiceDurations(id, customPractices) ?? durations;
+      const nextConfig = configFromDurations(nextDurations);
+      // No timing change (e.g. picking manual "Custom") — just update the label.
+      if (configsEqual(nextConfig, config)) {
+        setPractice(id);
+        return;
+      }
+      if (statusRef.current === 'complete') {
+        applyPractice(id, nextConfig);
+        return;
+      }
+      Alert.alert(
+        'Change breathing practice?',
+        'Changing the breathing practice will restart the current session. Do you want to continue?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Continue', onPress: () => applyPractice(id, nextConfig) },
+        ],
+      );
+    },
+    [customPractices, durations, config, setPractice, applyPractice],
+  );
+  const practiceLabel = practiceMeta(practice, customPractices).label;
+
   // Center label.
   let titleOverride: string | undefined;
   let subtitleOverride: string | undefined;
@@ -370,6 +421,33 @@ export function BreathingScreen() {
       >
         <Ionicons name="chevron-back" size={24} color={colors.title} />
       </Pressable>
+
+      {/* Change the breathing practice mid-session. */}
+      <Pressable
+        onPress={() => setPracticePickerOpen(true)}
+        accessibilityRole="button"
+        accessibilityLabel={`Breathing practice: ${practiceLabel}. Tap to change.`}
+        style={({ pressed }) => [
+          styles.practicePill,
+          {
+            backgroundColor: colors.control,
+            top: insets.top + Spacing.two,
+            opacity: pressed ? 0.6 : 1,
+          },
+        ]}
+      >
+        <Text style={[styles.practicePillText, { color: colors.title }]} numberOfLines={1}>
+          {practiceLabel}
+        </Text>
+        <Ionicons name="chevron-down" size={16} color={colors.title} />
+      </Pressable>
+
+      <PracticeSelectModal
+        visible={practicePickerOpen}
+        onClose={() => setPracticePickerOpen(false)}
+        value={practice}
+        onSelect={handlePracticeSelect}
+      />
     </LinearGradient>
   );
 }
@@ -420,5 +498,22 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  practicePill: {
+    position: 'absolute',
+    alignSelf: 'center',
+    zIndex: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+    maxWidth: '55%',
+    height: 44,
+    paddingHorizontal: Spacing.three,
+    borderRadius: 22,
+  },
+  practicePillText: {
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
 });

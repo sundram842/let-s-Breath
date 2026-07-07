@@ -15,7 +15,7 @@ export type HapticIntensity = 'gentle' | 'medium' | 'strong';
 /** App appearance. */
 export type ThemePreference = 'light' | 'dark';
 
-/** A guided breathing practice preset ("custom" = user-configured). */
+/** A built-in guided breathing practice ("custom" = fully manual timings). */
 export type BreathingPractice =
   | 'custom'
   | 'quickCalm'
@@ -23,6 +23,24 @@ export type BreathingPractice =
   | 'focusMode'
   | 'sleepPrep'
   | 'mindful';
+
+/**
+ * A user-created breathing practice. Lives alongside the built-in presets and is
+ * selected the same way. `id` is stable + unique; custom ids never collide with
+ * the built-in `BreathingPractice` keys (see `makeCustomPracticeId`).
+ */
+export interface CustomPractice {
+  id: string;
+  name: string;
+  durations: BreathingDurations;
+}
+
+/**
+ * The active practice selection: either a built-in key or a custom practice's
+ * `id`. Stored as a string so custom practices can be selected anywhere a
+ * built-in can.
+ */
+export type PracticeId = BreathingPractice | string;
 
 /** How a session ends: after a number of cycles, or after a length of time. */
 export type SessionMode = 'cycles' | 'duration';
@@ -55,6 +73,8 @@ export interface PersistedSettings {
   themePreference: ThemePreference;
   /** Keep the session running while the app is backgrounded. */
   backgroundEnabled: boolean;
-  /** Selected breathing practice preset. */
-  practice: BreathingPractice;
+  /** Selected practice — a built-in key or a custom practice id. */
+  practice: PracticeId;
+  /** User-created practices, in display order. */
+  customPractices: CustomPractice[];
 }

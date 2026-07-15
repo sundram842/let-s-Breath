@@ -126,16 +126,10 @@ export function useBreathingHaptics({
       if (next === 'background') {
         // Hand the upcoming timeline to the OS vibrator so it plays while the
         // JS/animation loop is suspended (Android only; iOS is a no-op).
-        console.log(
-          '[LB-DIAG] haptics background:',
-          'enabled=', s.enabled,
-          'backgroundEnabled=', s.backgroundEnabled,
-        );
         if (!s.enabled || !s.backgroundEnabled) return;
         const cycleElapsed = s.getCycleElapsedMs?.() ?? 0;
         const offsetIntoPhaseMs = Math.max(0, cycleElapsed - phaseStartMs(s.phaseIndex, s.config));
         const remaining = s.getSessionRemainingMs?.() ?? null;
-        console.log('[LB-DIAG] playBackground scheduling, remaining=', remaining);
         engine.playBackground({
           config: s.config,
           intensity: s.intensity,

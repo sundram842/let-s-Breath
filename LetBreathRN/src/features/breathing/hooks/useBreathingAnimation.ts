@@ -42,6 +42,9 @@ export interface UseBreathingAnimationParams {
 export interface UseBreathingAnimationResult {
   /** Ring fill 0..1, updated every frame on the UI thread. */
   progress: SharedValue<number>;
+  /** Progress 0..1 *within the current phase*, resetting to 0 at each phase
+   * boundary — drives the clock-style sweep. Updated on the UI thread. */
+  phaseProgress: SharedValue<number>;
   /** Current phase, for logic. */
   phase: BreathingPhase;
   /** Raw phase index 0-3 (inhale, hold-full, exhale, hold-empty) for cue engines. */
@@ -175,6 +178,19 @@ export function useBreathingAnimation({
     return 0;
   }, [inhaleMs, holdInMs, exhaleMs, total]);
 
+  // Progress within the current phase (0→1), for the clock-style sweep. Resets
+  // to 0 at each phase boundary because it's measured against that phase's own
+  // start + duration. A zero-length phase reads as instantly complete.
+  const phaseProgress = useDerivedValue(() => {
+    const t = clock.value * total;
+    if (t < inhaleMs) return inhaleMs > 0 ? t / inhaleMs : 1;
+    if (t < inhaleMs + holdInMs) return holdInMs > 0 ? (t - inhaleMs) / holdInMs : 1;
+    if (t < inhaleMs + holdInMs + exhaleMs) {
+      return exhaleMs > 0 ? (t - inhaleMs - holdInMs) / exhaleMs : 1;
+    }
+    return holdOutMs > 0 ? (t - inhaleMs - holdInMs - exhaleMs) / holdOutMs : 1;
+  }, [inhaleMs, holdInMs, exhaleMs, holdOutMs, total]);
+
   // Phase index (0 inhale, 1 hold-full, 2 exhale, 3 hold-empty).
   const phaseIndexSV = useDerivedValue(() => {
     const t = clock.value * total;
@@ -262,6 +278,7 @@ export function useBreathingAnimation({
   const phase = PHASE_SEQUENCE[phaseIndex];
   return {
     progress,
+    phaseProgress,
     phase,
     phaseIndex,
     phaseLabel: PHASE_LABELS[phase],

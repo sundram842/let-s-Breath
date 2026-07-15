@@ -6,8 +6,10 @@ import { BREATHING_CONFIG, RING } from '../constants';
 import { useBreathingAnimation } from '../hooks/useBreathingAnimation';
 import { useBreathingHaptics } from '../hooks/useBreathingHaptics';
 import { useBreathingSound } from '../hooks/useBreathingSound';
+import { useClockTick } from '../hooks/useClockTick';
 import type { BreathingConfig } from '../types';
 import { CenterLabel } from './CenterLabel';
+import { ClockRing } from './ClockRing';
 import { ProgressRing } from './ProgressRing';
 
 export interface BreathingCircleProps {
@@ -83,6 +85,7 @@ export function BreathingCircle({
 
   const {
     progress,
+    phaseProgress,
     phaseIndex,
     phaseLabel,
     cyclesLeft,
@@ -138,6 +141,9 @@ export function BreathingCircle({
   // Guided voice cues, synced to the phase transitions.
   useBreathingSound(phaseIndex, !muted && running);
 
+  // Ambient clock tick under the clock-style ring, while the session runs.
+  useClockTick(!muted && running);
+
   // Phase-synced vibration guidance (opt-in via Settings).
   useBreathingHaptics({
     phaseIndex,
@@ -156,6 +162,7 @@ export function BreathingCircle({
   return (
     <View style={[styles.container, { width: size, height: size }]}>
       <ProgressRing size={size} strokeWidth={strokeWidth} progress={progress} />
+      <ClockRing size={size} breathStrokeWidth={strokeWidth} phaseProgress={phaseProgress} />
       <CenterLabel
         title={title}
         subtitle={subtitle}
